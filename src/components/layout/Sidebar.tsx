@@ -33,7 +33,7 @@ const tenantNav: NavItem[] = [
   { href: "/tenant/viewings", label: "My Viewings", icon: Calendar },
   { href: "/tenant/applications", label: "Applications", icon: FileText },
   { href: "/tenant/payments", label: "Payments", icon: CreditCard },
-  { href: "/tenant/messages", label: "Messages", icon: MessageSquare },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/tenant/settings", label: "Settings", icon: Settings },
 ];
 
@@ -43,7 +43,7 @@ const landlordNav: NavItem[] = [
   { href: "/landlord/applications", label: "Applications", icon: FileText },
   { href: "/landlord/tenants", label: "Tenants", icon: Users },
   { href: "/landlord/payments", label: "Payments", icon: CreditCard },
-  { href: "/landlord/messages", label: "Messages", icon: MessageSquare },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/landlord/settings", label: "Settings", icon: Settings },
 ];
 
@@ -53,7 +53,7 @@ const agentNav: NavItem[] = [
   { href: "/agent/crm", label: "CRM / Leads", icon: Users },
   { href: "/agent/analytics", label: "Analytics", icon: BarChart3 },
   { href: "/agent/clients", label: "Clients", icon: UserCheck },
-  { href: "/agent/messages", label: "Messages", icon: MessageSquare },
+  { href: "/messages", label: "Messages", icon: MessageSquare },
   { href: "/agent/subscription", label: "Subscription", icon: Star },
   { href: "/agent/settings", label: "Settings", icon: Settings },
 ];

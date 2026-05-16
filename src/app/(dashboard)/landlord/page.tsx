@@ -1,11 +1,12 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Building, Plus, Users, CreditCard, ChevronRight, Shield, TrendingUp, AlertTriangle } from "lucide-react";
+import { Building, Plus, Users, CreditCard, ChevronRight, Shield, TrendingUp, AlertTriangle, MessageCircle } from "lucide-react";
 import Link from "next/link";
 import { VerificationBadge } from "@/components/trust/VerificationBadge";
 import { db } from "@/lib/db";
 import { formatKoboToNaira } from "@/lib/utils";
+import { mockConversations, MOCK_CURRENT_LANDLORD_ID } from "@/lib/mock-conversations";
 
 const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
   PENDING_PAYMENT: { label: "Pending Payment", color: "text-yellow-700", bg: "bg-yellow-100" },
@@ -24,6 +25,52 @@ type TxSummary = {
   tenant: { firstName: string | null; lastName: string | null; email: string | null };
   agreement: { tenantSignedAt: Date | null; landlordSignedAt: Date | null } | null;
 };
+
+type ConvSummary = {
+  id: string;
+  otherName: string;
+  listingTitle: string;
+  listingArea: string;
+  lastMessageText: string | null;
+  lastMessageAt: string | null;
+  unreadCount: number;
+};
+
+async function getRecentConversationsForLandlord(ownerId: string): Promise<ConvSummary[]> {
+  try {
+    const convs = await db.conversation.findMany({
+      where: { ownerId },
+      orderBy: { lastMessageAt: "desc" },
+      take: 3,
+      include: {
+        listing: { select: { title: true, area: true } },
+        tenant: { select: { firstName: true, lastName: true } },
+      },
+    });
+    return convs.map((c) => ({
+      id: c.id,
+      otherName: [c.tenant.firstName, c.tenant.lastName].filter(Boolean).join(" ") || "Tenant",
+      listingTitle: c.listing.title,
+      listingArea: c.listing.area,
+      lastMessageText: c.lastMessageText,
+      lastMessageAt: c.lastMessageAt?.toISOString() ?? null,
+      unreadCount: c.ownerUnread,
+    }));
+  } catch {
+    return mockConversations
+      .filter((c) => c.ownerId === MOCK_CURRENT_LANDLORD_ID)
+      .slice(0, 3)
+      .map((c) => ({
+        id: c.id,
+        otherName: [c.tenant.firstName, c.tenant.lastName].filter(Boolean).join(" ") || "Tenant",
+        listingTitle: c.listing.title,
+        listingArea: c.listing.area,
+        lastMessageText: c.lastMessageText,
+        lastMessageAt: c.lastMessageAt,
+        unreadCount: c.ownerUnread,
+      }));
+  }
+}
 
 async function getRecentTransactions(landlordId: string): Promise<TxSummary[]> {
   try {
@@ -58,6 +105,7 @@ export default async function LandlordDashboard() {
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
   const recentTransactions = await getRecentTransactions(session.user.id);
+  const recentConversations = await getRecentConversationsForLandlord(session.user.id);
   const pendingSignatures = recentTransactions.filter(
     (t) => t.agreement?.tenantSignedAt && !t.agreement?.landlordSignedAt
   );
@@ -198,6 +246,49 @@ export default async function LandlordDashboard() {
                 </Link>
               );
             })}
+          </div>
+        )}
+      </div>
+
+      {/* Recent Messages */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Messages</h2>
+          <Link href="/messages" className="text-sm text-[#0F7B5A] font-medium hover:underline">
+            View all messages
+          </Link>
+        </div>
+        {recentConversations.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
+            <MessageCircle className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-gray-600">No messages yet</p>
+            <p className="text-xs text-gray-400 mt-1">Messages from prospective tenants will appear here once they enquire about your listings.</p>
+          </div>
+        ) : (
+          <div className="space-y-2">
+            {recentConversations.map((conv) => (
+              <Link
+                key={conv.id}
+                href={`/messages?conversation=${conv.id}`}
+                className="flex items-center gap-3 bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:border-[#0F7B5A]/30 transition-all"
+              >
+                <div className="w-10 h-10 rounded-full bg-blue-50 flex items-center justify-center shrink-0">
+                  <span className="text-sm font-bold text-blue-600">
+                    {conv.otherName.split(" ").map((n) => n[0]).join("").slice(0, 2)}
+                  </span>
+                </div>
+                <div className="flex-1 min-w-0">
+                  <p className="font-semibold text-gray-900 text-sm">{conv.otherName}</p>
+                  <p className="text-xs text-gray-500 truncate">{conv.listingArea} · {conv.listingTitle}</p>
+                  <p className="text-xs text-gray-400 truncate mt-0.5">{conv.lastMessageText ?? "No messages yet"}</p>
+                </div>
+                {conv.unreadCount > 0 && (
+                  <span className="bg-[#0F7B5A] text-white text-xs font-bold rounded-full px-2 py-0.5 shrink-0">
+                    {conv.unreadCount}
+                  </span>
+                )}
+              </Link>
+            ))}
           </div>
         )}
       </div>

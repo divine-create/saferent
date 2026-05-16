@@ -85,6 +85,9 @@ model User {
   landlordTransactions  EscrowTransaction[] @relation("LandlordTransactions")
   tenantViewings        ViewingBooking[]    @relation("TenantViewings")
   raisedDisputes        Dispute[]           @relation("RaisedDisputes")
+  tenantConversations   Conversation[]      @relation("TenantConversations")
+  ownerConversations    Conversation[]      @relation("OwnerConversations")
+  sentMessages          Message[]           @relation("SentMessages")
 
   @@map("users")
 }
@@ -303,10 +306,11 @@ model Listing {
   updatedAt DateTime  @updatedAt
   expiresAt DateTime?
 
-  savedBy      SavedListing[]
-  enquiries    Enquiry[]
-  transactions EscrowTransaction[]
-  viewings     ViewingBooking[]
+  savedBy       SavedListing[]
+  enquiries     Enquiry[]
+  transactions  EscrowTransaction[]
+  viewings      ViewingBooking[]
+  conversations Conversation[]
 
   @@index([state, lga])
   @@index([status])
@@ -561,4 +565,65 @@ model Dispute {
   updatedAt DateTime @updatedAt
 
   @@map("disputes")
+}
+
+model Conversation {
+  id          String    @id @default(cuid())
+  listingId   String
+  listing     Listing   @relation(fields: [listingId], references: [id])
+
+  // Always exactly 2 participants: tenant + landlord/agent
+  tenantId    String
+  tenant      User      @relation("TenantConversations", fields: [tenantId], references: [id])
+  ownerId     String    // landlord or agent
+  owner       User      @relation("OwnerConversations", fields: [ownerId], references: [id])
+
+  messages    Message[]
+
+  // Last message preview (denormalised for list view performance)
+  lastMessageAt   DateTime?
+  lastMessageText String?   @db.VarChar(200)
+
+  // Unread counts
+  tenantUnread  Int @default(0)
+  ownerUnread   Int @default(0)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([listingId, tenantId, ownerId])
+  @@index([tenantId])
+  @@index([ownerId])
+  @@map("conversations")
+}
+
+enum MessageType {
+  TEXT
+  IMAGE
+  PDF
+  SYSTEM  // automated platform messages
+}
+
+model Message {
+  id              String          @id @default(cuid())
+  conversationId  String
+  conversation    Conversation    @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  senderId        String
+  sender          User            @relation("SentMessages", fields: [senderId], references: [id])
+
+  type            MessageType     @default(TEXT)
+  content         String          @db.Text
+  mediaUrl        String?         // for IMAGE or PDF types
+
+  isRead          Boolean         @default(false)
+  readAt          DateTime?
+
+  // System message metadata
+  systemEventType String?         // e.g. "VIEWING_CONFIRMED", "ESCROW_FUNDED"
+
+  createdAt   DateTime @default(now())
+
+  @@index([conversationId])
+  @@index([senderId])
+  @@map("messages")
 }

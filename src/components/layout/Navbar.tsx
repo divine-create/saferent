@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { useSession, signOut } from "next-auth/react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { cn } from "@/lib/utils";
 import { TrustScorePill } from "@/components/trust/TrustScoreBadge";
 import {
@@ -12,12 +12,27 @@ import {
   Menu,
   X,
   Shield,
+  MessageCircle,
 } from "lucide-react";
 
 export function Navbar() {
   const { data: session } = useSession();
   const [menuOpen, setMenuOpen] = useState(false);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const fetchUnread = () => {
+      fetch("/api/conversations/unread")
+        .then((r) => r.json())
+        .then((d: { unread?: number }) => setUnreadCount(d.unread ?? 0))
+        .catch(() => {/* ignore */});
+    };
+    fetchUnread();
+    const interval = setInterval(fetchUnread, 30000);
+    return () => clearInterval(interval);
+  }, [session?.user?.id]);
 
   const dashboardPath = session?.user?.role
     ? `/${session.user.role.toLowerCase()}`
@@ -63,6 +78,20 @@ export function Navbar() {
 
           {/* Auth Area */}
           <div className="flex items-center gap-3">
+            {session && (
+              <Link
+                href="/messages"
+                className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                title="Messages"
+              >
+                <MessageCircle className="w-5 h-5 text-gray-600" />
+                {unreadCount > 0 && (
+                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
+                    {unreadCount > 99 ? "99+" : unreadCount}
+                  </span>
+                )}
+              </Link>
+            )}
             {session ? (
               <div className="relative">
                 <button

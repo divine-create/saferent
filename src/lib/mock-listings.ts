@@ -16,6 +16,7 @@ export type MockListing = {
   lga: string;
   state: string;
   landmark: string;
+  neighbourhoodDescription?: string;
   annualRent: number;
   cautionDeposit: number;
   serviceCharge?: number;

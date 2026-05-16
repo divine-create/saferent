@@ -88,6 +88,19 @@ model User {
   tenantConversations   Conversation[]      @relation("TenantConversations")
   ownerConversations    Conversation[]      @relation("OwnerConversations")
   sentMessages          Message[]           @relation("SentMessages")
+  tenantMaintenance     MaintenanceRequest[] @relation("TenantMaintenance")
+  landlordMaintenance   MaintenanceRequest[] @relation("LandlordMaintenance")
+  tenantRentPayments    RentPayment[]        @relation("TenantRentPayments")
+  landlordInspections   PropertyInspection[] @relation("LandlordInspections")
+  landlordRenewals      LeaseRenewal[]       @relation("LandlordRenewals")
+  tenantRenewals        LeaseRenewal[]       @relation("TenantRenewals")
+  tenantInstallments    InstallmentPlan[]    @relation("TenantInstallments")
+  tenantInstallmentPayments Installment[]    @relation("TenantInstallmentPayments")
+  agentCRMContacts      CRMContact[]         @relation("AgentCRMContacts")
+  agentCommissions      AgentCommission[]    @relation("AgentCommissions")
+  givenReviews          Review[]             @relation("GivenReviews")
+  receivedReviews       Review[]             @relation("ReceivedReviews")
+  notifications         Notification[]
 
   @@map("users")
 }
@@ -413,6 +426,70 @@ enum MoveInStatus {
   DISPUTED
 }
 
+enum MaintenanceStatus {
+  SUBMITTED
+  ACKNOWLEDGED
+  IN_PROGRESS
+  RESOLVED
+  DECLINED
+}
+
+enum MaintenanceCategory {
+  PLUMBING
+  ELECTRICAL
+  STRUCTURAL
+  APPLIANCE
+  SECURITY
+  PEST_CONTROL
+  CLEANING
+  OTHER
+}
+
+enum InspectionStatus {
+  SCHEDULED
+  COMPLETED
+  CANCELLED
+}
+
+enum InstallmentStatus {
+  PENDING
+  PAID
+  FAILED
+  OVERDUE
+}
+
+enum CRMContactType {
+  LANDLORD_CLIENT
+  TENANT_LEAD
+}
+
+enum LeadStatus {
+  NEW
+  VIEWING_BOOKED
+  OFFER_MADE
+  LET_AGREED
+  LOST
+}
+
+enum NotificationType {
+  NEW_LISTING_MATCH
+  VIEWING_CONFIRMED
+  VIEWING_REMINDER
+  ESCROW_FUNDED
+  AGREEMENT_SIGNATURE
+  MOVE_IN_CONFIRMED
+  PAYOUT_SENT
+  DISPUTE_RAISED
+  DISPUTE_RESOLVED
+  LEASE_RENEWAL_REMINDER
+  LISTING_EXPIRY
+  NEW_APPLICANT
+  MAINTENANCE_UPDATE
+  RENT_DUE
+  INSTALLMENT_DUE
+  SYSTEM
+}
+
 model EscrowTransaction {
   id          String @id @default(cuid())
   reference   String @unique
@@ -447,6 +524,12 @@ model EscrowTransaction {
   agreement   TenancyAgreement?
   dispute     Dispute?
   moveInRecord MoveInRecord?
+  maintenanceRequests MaintenanceRequest[]
+  rentPayments RentPayment[]
+  inspections  PropertyInspection[]
+  renewal      LeaseRenewal?
+  installmentPlan InstallmentPlan?
+  agentCommission AgentCommission?
 
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
@@ -455,6 +538,260 @@ model EscrowTransaction {
   @@index([landlordId])
   @@index([listingId])
   @@map("escrow_transactions")
+}
+
+model MaintenanceRequest {
+  id              String              @id @default(cuid())
+  tenancyId       String
+  tenancy         EscrowTransaction   @relation(fields: [tenancyId], references: [id])
+  tenantId        String
+  tenant          User                @relation("TenantMaintenance", fields: [tenantId], references: [id])
+  landlordId      String
+  landlord        User                @relation("LandlordMaintenance", fields: [landlordId], references: [id])
+
+  category        MaintenanceCategory
+  title           String
+  description     String              @db.Text
+  photoUrls       String[]
+  urgency         String              @default("normal")
+
+  status          MaintenanceStatus   @default(SUBMITTED)
+  landlordNotes   String?             @db.Text
+  scheduledDate   DateTime?
+  resolvedAt      DateTime?
+  tenantConfirmed Boolean             @default(false)
+
+  createdAt       DateTime            @default(now())
+  updatedAt       DateTime            @updatedAt
+
+  @@index([tenancyId])
+  @@map("maintenance_requests")
+}
+
+model RentPayment {
+  id              String   @id @default(cuid())
+  tenancyId       String
+  tenancy         EscrowTransaction @relation(fields: [tenancyId], references: [id])
+  tenantId        String
+  tenant          User     @relation("TenantRentPayments", fields: [tenantId], references: [id])
+
+  dueDate         DateTime
+  amount          BigInt
+  paidAt          DateTime?
+  paidAmount      BigInt?
+  lateFee         BigInt?
+  status          String   @default("pending")
+
+  paymentMethod   String?
+  reference       String?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@index([tenancyId])
+  @@map("rent_payments")
+}
+
+model PropertyInspection {
+  id              String          @id @default(cuid())
+  tenancyId       String
+  tenancy         EscrowTransaction @relation(fields: [tenancyId], references: [id])
+  landlordId      String
+  landlord        User            @relation("LandlordInspections", fields: [landlordId], references: [id])
+
+  scheduledDate   DateTime
+  status          InspectionStatus @default(SCHEDULED)
+  noticeGivenAt   DateTime
+  notes           String?         @db.Text
+  photoUrls       String[]
+  reportData      Json?
+
+  completedAt     DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("property_inspections")
+}
+
+model LeaseRenewal {
+  id              String   @id @default(cuid())
+  tenancyId       String   @unique
+  tenancy         EscrowTransaction @relation(fields: [tenancyId], references: [id])
+  landlordId      String
+  landlord        User     @relation("LandlordRenewals", fields: [landlordId], references: [id])
+  tenantId        String
+  tenant          User     @relation("TenantRenewals", fields: [tenantId], references: [id])
+
+  proposedRent    BigInt
+  currentRent     BigInt
+  renewalStartDate DateTime
+  renewalEndDate   DateTime
+
+  status          String   @default("proposed")
+  tenantCounter   BigInt?
+  landlordResponse String? @db.Text
+  tenantResponse   String? @db.Text
+
+  noticeToVacateAt DateTime?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("lease_renewals")
+}
+
+model InstallmentPlan {
+  id              String   @id @default(cuid())
+  transactionId   String   @unique
+  transaction     EscrowTransaction @relation(fields: [transactionId], references: [id])
+  tenantId        String
+  tenant          User     @relation("TenantInstallments", fields: [tenantId], references: [id])
+
+  totalAmount     BigInt
+  monthlyAmount   BigInt
+  interestRate    Float
+  totalInterest   BigInt
+  totalRepayable  BigInt
+
+  debitDay        Int
+  startDate       DateTime
+
+  status          String   @default("active")
+  missedPayments  Int      @default(0)
+
+  installments    Installment[]
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("installment_plans")
+}
+
+model Installment {
+  id                String            @id @default(cuid())
+  planId            String
+  plan              InstallmentPlan   @relation(fields: [planId], references: [id])
+  tenantId          String
+  tenant            User              @relation("TenantInstallmentPayments", fields: [tenantId], references: [id])
+
+  installmentNumber Int
+  dueDate           DateTime
+  amount            BigInt
+  paidAt            DateTime?
+  paidAmount        BigInt?
+  status            InstallmentStatus @default(PENDING)
+  reference         String?
+  retryCount        Int               @default(0)
+
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("installments")
+}
+
+model CRMContact {
+  id          String          @id @default(cuid())
+  agentId     String
+  agent       User            @relation("AgentCRMContacts", fields: [agentId], references: [id])
+
+  type        CRMContactType
+  firstName   String
+  lastName    String
+  email       String?
+  phone       String?
+  notes       String?         @db.Text
+  tags        String[]
+
+  leadStatus  LeadStatus?     @default(NEW)
+  listingId   String?
+  budget      BigInt?
+  preferredAreas String[]
+
+  portfolioSize Int?
+  activeListings Int?
+
+  followUpDate  DateTime?
+  lastContactedAt DateTime?
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([agentId])
+  @@map("crm_contacts")
+}
+
+model AgentCommission {
+  id              String   @id @default(cuid())
+  agentId         String
+  agent           User     @relation("AgentCommissions", fields: [agentId], references: [id])
+  transactionId   String   @unique
+  transaction     EscrowTransaction @relation(fields: [transactionId], references: [id])
+
+  amount          BigInt
+  percentage      Float    @default(10.0)
+  status          String   @default("pending")
+  paidAt          DateTime?
+  invoiceNumber   String?
+
+  splitWith       String?
+  splitPercentage Float?
+
+  createdAt       DateTime @default(now())
+  updatedAt       DateTime @updatedAt
+
+  @@map("agent_commissions")
+}
+
+model Review {
+  id          String   @id @default(cuid())
+  reviewerId  String
+  reviewer    User     @relation("GivenReviews", fields: [reviewerId], references: [id])
+  revieweeId  String
+  reviewee    User     @relation("ReceivedReviews", fields: [revieweeId], references: [id])
+  transactionId String?
+
+  type        String
+
+  overallRating       Int
+  conditionRating     Int?
+  responsivenessRating Int?
+  accuracyRating      Int?
+  valueRating         Int?
+  paymentRating       Int?
+  careRating          Int?
+
+  comment     String?  @db.Text
+  response    String?  @db.Text
+
+  isPublished Boolean  @default(true)
+  isFlagged   Boolean  @default(false)
+
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([revieweeId])
+  @@map("reviews")
+}
+
+model Notification {
+  id          String           @id @default(cuid())
+  userId      String
+  user        User             @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  type        NotificationType
+  title       String
+  body        String
+  actionUrl   String?
+  isRead      Boolean          @default(false)
+  readAt      DateTime?
+
+  metadata    Json?
+
+  createdAt   DateTime @default(now())
+
+  @@index([userId, isRead])
+  @@map("notifications")
 }
 
 model TenancyAgreement {

@@ -47,6 +47,33 @@ export function maskEmail(email: string): string {
   return `${masked}@${domain}`;
 }
 
+export function generateTransactionRef(): string {
+  const year = new Date().getFullYear();
+  const chars = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  let suffix = "";
+  for (let i = 0; i < 5; i++) {
+    suffix += chars[Math.floor(Math.random() * chars.length)];
+  }
+  return `SR-${year}-${suffix}`;
+}
+
+export function calculateEscrowBreakdown(annualRent: bigint, cautionDeposit: bigint) {
+  const safeRentFee = (annualRent * BigInt(5)) / BigInt(100);
+  const documentFee = BigInt(800000); // ₦8,000 in kobo
+  const total = annualRent + cautionDeposit + safeRentFee + documentFee;
+  return { rentAmount: annualRent, cautionAmount: cautionDeposit, safeRentFee, documentFee, total };
+}
+
+export function formatKoboToNaira(kobo: bigint): string {
+  const naira = Number(kobo) / 100;
+  return new Intl.NumberFormat("en-NG", {
+    style: "currency",
+    currency: "NGN",
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
+  }).format(naira);
+}
+
 export function calculateTrustScore(params: {
   isEmailVerified: boolean;
   isPhoneVerified: boolean;

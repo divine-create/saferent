@@ -81,6 +81,10 @@ model User {
   agentListings         Listing[]    @relation("AgentListings")
   savedListings         SavedListing[]
   enquiries             Enquiry[]
+  tenantTransactions    EscrowTransaction[] @relation("TenantTransactions")
+  landlordTransactions  EscrowTransaction[] @relation("LandlordTransactions")
+  tenantViewings        ViewingBooking[]    @relation("TenantViewings")
+  raisedDisputes        Dispute[]           @relation("RaisedDisputes")
 
   @@map("users")
 }
@@ -299,8 +303,10 @@ model Listing {
   updatedAt DateTime  @updatedAt
   expiresAt DateTime?
 
-  savedBy   SavedListing[]
-  enquiries Enquiry[]
+  savedBy      SavedListing[]
+  enquiries    Enquiry[]
+  transactions EscrowTransaction[]
+  viewings     ViewingBooking[]
 
   @@index([state, lga])
   @@index([status])
@@ -342,4 +348,217 @@ model Enquiry {
   createdAt DateTime @default(now())
 
   @@map("enquiries")
+}
+
+enum EscrowStatus {
+  PENDING_PAYMENT
+  FUNDED
+  RELEASED
+  REFUNDED
+  DISPUTED
+}
+
+enum TransactionType {
+  ESCROW_PAYMENT
+  PAYOUT
+  REFUND
+  CAUTION_DEPOSIT
+}
+
+enum PaymentMethod {
+  CARD
+  BANK_TRANSFER
+  USSD
+}
+
+enum DisputeStatus {
+  OPEN
+  EVIDENCE_COLLECTION
+  MEDIATION
+  ADJUDICATION
+  RESOLVED
+  ESCALATED
+}
+
+enum DisputeCategory {
+  NOT_AS_DESCRIBED
+  NOT_ACCESSIBLE
+  MAJOR_DEFECT
+  CAUTION_DEPOSIT
+  FRAUDULENT_LISTING
+}
+
+enum DisputeOutcome {
+  FULL_REFUND_TENANT
+  PARTIAL_REFUND
+  FULL_RELEASE_LANDLORD
+  SPLIT
+}
+
+enum ViewingStatus {
+  REQUESTED
+  CONFIRMED
+  COMPLETED
+  CANCELLED
+  NO_SHOW
+}
+
+enum MoveInStatus {
+  SCHEDULED
+  CONFIRMED
+  DISPUTED
+}
+
+model EscrowTransaction {
+  id          String @id @default(cuid())
+  reference   String @unique
+  listingId   String
+  listing     Listing @relation(fields: [listingId], references: [id])
+  tenantId    String
+  tenant      User    @relation("TenantTransactions", fields: [tenantId], references: [id])
+  landlordId  String
+  landlord    User    @relation("LandlordTransactions", fields: [landlordId], references: [id])
+
+  rentAmount    BigInt
+  cautionAmount BigInt @default(0)
+  safeRentFee   BigInt
+  documentFee   BigInt @default(800000)
+  totalAmount   BigInt
+
+  paymentMethod  PaymentMethod
+  escrowStatus   EscrowStatus  @default(PENDING_PAYMENT)
+
+  paymentDate       DateTime?
+  moveInDate        DateTime
+  moveInConfirmedAt DateTime?
+  escrowReleasedAt  DateTime?
+  autoReleaseAt     DateTime?
+
+  payoutSentAt    DateTime?
+  payoutReference String?
+
+  tenancyStartDate DateTime?
+  tenancyEndDate   DateTime?
+
+  agreement   TenancyAgreement?
+  dispute     Dispute?
+  moveInRecord MoveInRecord?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([tenantId])
+  @@index([landlordId])
+  @@index([listingId])
+  @@map("escrow_transactions")
+}
+
+model TenancyAgreement {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  transaction   EscrowTransaction @relation(fields: [transactionId], references: [id])
+
+  tenantLegalName   String
+  landlordLegalName String
+  tenantAddress     String
+  landlordAddress   String
+
+  propertyAddress   String
+  tenancyStartDate  DateTime
+  tenancyEndDate    DateTime
+  rentAmount        BigInt
+  paymentFrequency  PaymentFrequency
+  cautionDeposit    BigInt
+  latePaymentPenalty Int @default(5)
+  noticePeriodDays   Int @default(30)
+
+  state String
+
+  tenantSignedAt      DateTime?
+  tenantOtpVerified   Boolean @default(false)
+  landlordSignedAt    DateTime?
+  landlordOtpVerified Boolean @default(false)
+
+  pdfUrl    String?
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("tenancy_agreements")
+}
+
+model MoveInRecord {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  transaction   EscrowTransaction @relation(fields: [transactionId], references: [id])
+
+  scheduledDate DateTime
+  status        MoveInStatus @default(SCHEDULED)
+  confirmedAt   DateTime?
+  tenantLatitude  Float?
+  tenantLongitude Float?
+  photoUrl        String?
+
+  conditionReportComplete Boolean @default(false)
+  conditionReportData     Json?
+
+  keysHandedOver Boolean @default(false)
+  keyDetails     String?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("move_in_records")
+}
+
+model ViewingBooking {
+  id        String @id @default(cuid())
+  listingId String
+  listing   Listing @relation(fields: [listingId], references: [id])
+  tenantId  String
+  tenant    User    @relation("TenantViewings", fields: [tenantId], references: [id])
+
+  proposedSlots Json
+  confirmedSlot DateTime?
+  status        ViewingStatus @default(REQUESTED)
+
+  notes          String? @db.Text
+  tenantFeedback String?
+  tenantNotes    String? @db.Text
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([listingId])
+  @@index([tenantId])
+  @@map("viewing_bookings")
+}
+
+model Dispute {
+  id            String @id @default(cuid())
+  transactionId String @unique
+  transaction   EscrowTransaction @relation(fields: [transactionId], references: [id])
+
+  raisedById String
+  raisedBy   User   @relation("RaisedDisputes", fields: [raisedById], references: [id])
+
+  category    DisputeCategory
+  description String          @db.Text
+  status      DisputeStatus   @default(OPEN)
+  outcome     DisputeOutcome?
+
+  tenantEvidence   Json?
+  landlordEvidence Json?
+
+  resolution  String?   @db.Text
+  resolvedAt  DateTime?
+  refundAmount BigInt?
+
+  evidenceDeadline    DateTime?
+  mediationDeadline   DateTime?
+  adjudicationDeadline DateTime?
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("disputes")
 }

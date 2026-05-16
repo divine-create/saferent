@@ -77,6 +77,10 @@ model User {
   profile               UserProfile?
   landlordVerification  LandlordVerification?
   agentProfile          AgentProfile?
+  ownedListings         Listing[]    @relation("OwnedListings")
+  agentListings         Listing[]    @relation("AgentListings")
+  savedListings         SavedListing[]
+  enquiries             Enquiry[]
 
   @@map("users")
 }
@@ -184,4 +188,158 @@ model VerificationToken {
 
   @@unique([identifier, token])
   @@map("verification_tokens")
+}
+
+enum PropertyType {
+  FLAT
+  SELF_CONTAINED
+  DUPLEX
+  BUNGALOW
+  TERRACED_HOUSE
+  DETACHED_HOUSE
+  ROOM_AND_PARLOUR
+  STUDIO
+}
+
+enum FurnishingStatus {
+  UNFURNISHED
+  SEMI_FURNISHED
+  FULLY_FURNISHED
+}
+
+enum LetType {
+  LONG_LET
+  SHORT_LET
+}
+
+enum PaymentFrequency {
+  ANNUAL
+  BIANNUAL
+  QUARTERLY
+  MONTHLY
+}
+
+enum ListingStatus {
+  DRAFT
+  PENDING_VERIFICATION
+  VERIFIED_ACTIVE
+  UNVERIFIED_ACTIVE
+  PAUSED
+  LET_AGREED
+  OCCUPIED
+  EXPIRED
+}
+
+enum PropertyCondition {
+  NEW
+  GOOD
+  NEEDS_MINOR_WORK
+}
+
+model Listing {
+  id          String        @id @default(cuid())
+  title       String
+  description String?       @db.Text
+  slug        String        @unique
+
+  // Ownership
+  ownerId     String
+  owner       User          @relation("OwnedListings", fields: [ownerId], references: [id])
+  agentId     String?
+  agent       User?         @relation("AgentListings", fields: [agentId], references: [id])
+
+  // Type & basics
+  propertyType      PropertyType
+  bedrooms          Int
+  bathrooms         Int
+  toilets           Int
+  floorLevel        Int?
+  furnishingStatus  FurnishingStatus  @default(UNFURNISHED)
+  letType           LetType           @default(LONG_LET)
+  propertyCondition PropertyCondition @default(GOOD)
+  yearBuilt         Int?
+  availableFrom     DateTime
+
+  // Location
+  address                  String
+  area                     String
+  lga                      String
+  state                    String
+  latitude                 Float?
+  longitude                Float?
+  landmark                 String?
+  neighbourhoodDescription String?
+
+  // Pricing
+  annualRent         BigInt
+  cautionDeposit     BigInt?
+  serviceCharge      BigInt?
+  agencyFee          BigInt?
+  paymentFrequencies PaymentFrequency[]
+
+  // Status
+  status       ListingStatus @default(DRAFT)
+  isVerified   Boolean       @default(false)
+  viewCount    Int           @default(0)
+  enquiryCount Int           @default(0)
+
+  // Media
+  photos         ListingPhoto[]
+  videoUrl       String?
+  virtualTourUrl String?
+
+  // Amenities (stored as string array)
+  amenities String[]
+
+  // Documents
+  titleDocumentUrl String?
+  surveyPlanUrl    String?
+
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  expiresAt DateTime?
+
+  savedBy   SavedListing[]
+  enquiries Enquiry[]
+
+  @@index([state, lga])
+  @@index([status])
+  @@index([ownerId])
+  @@map("listings")
+}
+
+model ListingPhoto {
+  id        String   @id @default(cuid())
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  url       String
+  caption   String?
+  order     Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@map("listing_photos")
+}
+
+model SavedListing {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id], onDelete: Cascade)
+  createdAt DateTime @default(now())
+
+  @@unique([userId, listingId])
+  @@map("saved_listings")
+}
+
+model Enquiry {
+  id        String   @id @default(cuid())
+  userId    String
+  user      User     @relation(fields: [userId], references: [id])
+  listingId String
+  listing   Listing  @relation(fields: [listingId], references: [id])
+  message   String   @db.Text
+  createdAt DateTime @default(now())
+
+  @@map("enquiries")
 }

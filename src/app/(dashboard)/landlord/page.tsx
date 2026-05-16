@@ -1,9 +1,55 @@
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
-import { Building, Plus, Users, CreditCard, ChevronRight, Shield, TrendingUp } from "lucide-react";
+import { Building, Plus, Users, CreditCard, ChevronRight, Shield, TrendingUp, AlertTriangle } from "lucide-react";
 import Link from "next/link";
 import { VerificationBadge } from "@/components/trust/VerificationBadge";
+import { db } from "@/lib/db";
+import { formatKoboToNaira } from "@/lib/utils";
+
+const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING_PAYMENT: { label: "Pending Payment", color: "text-yellow-700", bg: "bg-yellow-100" },
+  FUNDED: { label: "In Escrow", color: "text-blue-700", bg: "bg-blue-100" },
+  RELEASED: { label: "Released", color: "text-green-700", bg: "bg-green-100" },
+  REFUNDED: { label: "Refunded", color: "text-orange-700", bg: "bg-orange-100" },
+  DISPUTED: { label: "Disputed", color: "text-red-700", bg: "bg-red-100" },
+};
+
+type TxSummary = {
+  id: string;
+  reference: string;
+  escrowStatus: string;
+  totalAmount: string;
+  listing: { title: string; address: string };
+  tenant: { firstName: string | null; lastName: string | null; email: string | null };
+  agreement: { tenantSignedAt: Date | null; landlordSignedAt: Date | null } | null;
+};
+
+async function getRecentTransactions(landlordId: string): Promise<TxSummary[]> {
+  try {
+    const txs = await db.escrowTransaction.findMany({
+      where: { landlordId },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: {
+        listing: { select: { title: true, address: true } },
+        tenant: { select: { firstName: true, lastName: true, email: true } },
+        agreement: { select: { tenantSignedAt: true, landlordSignedAt: true } },
+      },
+    });
+    return txs.map((t) => ({
+      id: t.id,
+      reference: t.reference,
+      escrowStatus: t.escrowStatus,
+      totalAmount: t.totalAmount.toString(),
+      listing: t.listing,
+      tenant: t.tenant,
+      agreement: t.agreement,
+    }));
+  } catch {
+    return [];
+  }
+}
 
 export default async function LandlordDashboard() {
   const session = await getServerSession(authOptions);
@@ -11,6 +57,10 @@ export default async function LandlordDashboard() {
   if (session.user.role !== "LANDLORD") redirect("/login");
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const recentTransactions = await getRecentTransactions(session.user.id);
+  const pendingSignatures = recentTransactions.filter(
+    (t) => t.agreement?.tenantSignedAt && !t.agreement?.landlordSignedAt
+  );
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -84,6 +134,72 @@ export default async function LandlordDashboard() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* Pending signatures alert */}
+      {pendingSignatures.length > 0 && (
+        <div className="bg-amber-50 border border-amber-200 rounded-xl p-4 flex items-center gap-4">
+          <div className="w-10 h-10 bg-amber-100 rounded-full flex items-center justify-center shrink-0">
+            <AlertTriangle className="w-5 h-5 text-amber-600" />
+          </div>
+          <div className="flex-1">
+            <p className="font-semibold text-amber-800 text-sm">
+              {pendingSignatures.length} agreement{pendingSignatures.length > 1 ? "s" : ""} awaiting your signature
+            </p>
+            <p className="text-amber-700 text-xs mt-0.5">Tenant has signed — sign to finalise the tenancy agreement.</p>
+          </div>
+          <Link
+            href={`/landlord/transactions/${pendingSignatures[0].id}`}
+            className="bg-amber-600 text-white text-sm font-medium px-4 py-2 rounded-lg hover:bg-amber-700 transition-colors shrink-0"
+          >
+            Sign Now
+          </Link>
+        </div>
+      )}
+
+      {/* Recent Transactions */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">Recent Transactions</h2>
+          <Link href="/landlord/transactions" className="text-sm text-[#0F7B5A] font-medium hover:underline">
+            View all
+          </Link>
+        </div>
+        {recentTransactions.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
+            <CreditCard className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-gray-600">No transactions yet</p>
+            <p className="text-xs text-gray-400 mt-1">Transactions appear here when tenants pay via SafeRent Escrow.</p>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentTransactions.map((tx) => {
+              const status = STATUS_BADGE[tx.escrowStatus] ?? { label: tx.escrowStatus, color: "text-gray-700", bg: "bg-gray-100" };
+              const tenantName = [tx.tenant.firstName, tx.tenant.lastName].filter(Boolean).join(" ") || tx.tenant.email || "—";
+              return (
+                <Link
+                  key={tx.id}
+                  href={`/landlord/transactions/${tx.id}`}
+                  className="block bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:border-[#0F7B5A]/30 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{tx.listing.title}</p>
+                      <p className="text-xs text-gray-500">Tenant: {tenantName}</p>
+                      <p className="text-xs text-gray-400 font-mono mt-1">{tx.reference}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-sm text-gray-900">{formatKoboToNaira(BigInt(tx.totalAmount))}</p>
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${status.bg} ${status.color}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Listings empty state */}

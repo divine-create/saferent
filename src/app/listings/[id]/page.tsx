@@ -333,16 +333,14 @@ export default async function ListingDetailPage({ params }: PageProps) {
                   >
                     Pay with SafeRent Escrow
                   </a>
-                  <button className="w-full py-3 border-2 border-[#0F7B5A] text-[#0F7B5A] font-semibold rounded-xl hover:bg-[#0F7B5A]/5 transition-colors">
-                    Book a Viewing
-                  </button>
                 </div>
 
-                {/* Enquiry button */}
+                {/* Enquiry + viewing buttons */}
                 <ListingDetailClient
                   listingId={id}
                   listingTitle={listing.title}
                   isAuthenticated={!!session}
+                  showViewingButton={true}
                 />
               </div>
 

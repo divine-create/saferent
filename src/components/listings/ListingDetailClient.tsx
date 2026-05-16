@@ -1,18 +1,21 @@
 "use client";
 
 import { useState } from "react";
-import { MessageSquare, Copy, Check } from "lucide-react";
+import { MessageSquare, Copy, Check, Calendar } from "lucide-react";
 import { EnquiryModal } from "./EnquiryModal";
+import { BookViewingModal } from "./BookViewingModal";
 
 interface ListingDetailClientProps {
   listingId: string;
   listingTitle: string;
   isAuthenticated: boolean;
   showCopyOnly?: boolean;
+  showViewingButton?: boolean;
 }
 
-export function ListingDetailClient({ listingId, listingTitle, isAuthenticated, showCopyOnly = false }: ListingDetailClientProps) {
+export function ListingDetailClient({ listingId, listingTitle, isAuthenticated, showCopyOnly = false, showViewingButton = false }: ListingDetailClientProps) {
   const [enquiryOpen, setEnquiryOpen] = useState(false);
+  const [viewingOpen, setViewingOpen] = useState(false);
   const [copied, setCopied] = useState(false);
 
   async function handleCopy() {
@@ -39,6 +42,22 @@ export function ListingDetailClient({ listingId, listingTitle, isAuthenticated, 
 
   return (
     <>
+      {showViewingButton && (
+        <button
+          onClick={() => {
+            if (!isAuthenticated) {
+              window.location.href = `/login?callbackUrl=/listings/${listingId}`;
+              return;
+            }
+            setViewingOpen(true);
+          }}
+          className="w-full py-3 border-2 border-[#0F7B5A] text-[#0F7B5A] font-semibold rounded-xl hover:bg-[#0F7B5A]/5 transition-colors flex items-center justify-center gap-2 text-sm"
+        >
+          <Calendar className="w-4 h-4" />
+          Book a Viewing
+        </button>
+      )}
+
       <button
         onClick={() => {
           if (!isAuthenticated) {
@@ -58,6 +77,13 @@ export function ListingDetailClient({ listingId, listingTitle, isAuthenticated, 
         listingTitle={listingTitle}
         isOpen={enquiryOpen}
         onClose={() => setEnquiryOpen(false)}
+      />
+
+      <BookViewingModal
+        listingId={listingId}
+        listingTitle={listingTitle}
+        isOpen={viewingOpen}
+        onClose={() => setViewingOpen(false)}
       />
     </>
   );

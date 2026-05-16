@@ -4,6 +4,54 @@ import { redirect } from "next/navigation";
 import { Home, Search, CreditCard, FileText, Shield, ChevronRight, Calendar, Bell } from "lucide-react";
 import Link from "next/link";
 import { TrustScoreBadge } from "@/components/trust/TrustScoreBadge";
+import { db } from "@/lib/db";
+import { mockTransactions } from "@/lib/mock-transactions";
+import { formatKoboToNaira } from "@/lib/utils";
+
+const STATUS_BADGE: Record<string, { label: string; color: string; bg: string }> = {
+  PENDING_PAYMENT: { label: "Pending Payment", color: "text-yellow-700", bg: "bg-yellow-100" },
+  FUNDED: { label: "In Escrow", color: "text-blue-700", bg: "bg-blue-100" },
+  RELEASED: { label: "Released", color: "text-green-700", bg: "bg-green-100" },
+  REFUNDED: { label: "Refunded", color: "text-orange-700", bg: "bg-orange-100" },
+  DISPUTED: { label: "Disputed", color: "text-red-700", bg: "bg-red-100" },
+};
+
+type TxSummary = {
+  id: string;
+  reference: string;
+  escrowStatus: string;
+  totalAmount: string;
+  moveInDate: string;
+  listing: { title: string; address: string };
+};
+
+async function getRecentTransactions(tenantId: string): Promise<TxSummary[]> {
+  try {
+    const txs = await db.escrowTransaction.findMany({
+      where: { tenantId },
+      orderBy: { createdAt: "desc" },
+      take: 3,
+      include: { listing: { select: { title: true, address: true } } },
+    });
+    return txs.map((t) => ({
+      id: t.id,
+      reference: t.reference,
+      escrowStatus: t.escrowStatus,
+      totalAmount: t.totalAmount.toString(),
+      moveInDate: t.moveInDate.toISOString(),
+      listing: t.listing,
+    }));
+  } catch {
+    return mockTransactions.slice(0, 3).map((t) => ({
+      id: t.id,
+      reference: t.reference,
+      escrowStatus: t.escrowStatus,
+      totalAmount: t.totalAmount,
+      moveInDate: t.moveInDate,
+      listing: { title: t.listing.title, address: t.listing.address },
+    }));
+  }
+}
 
 export default async function TenantDashboard() {
   const session = await getServerSession(authOptions);
@@ -12,6 +60,8 @@ export default async function TenantDashboard() {
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
   const trustScore = session.user.trustScore ?? 0;
+
+  const recentTransactions = await getRecentTransactions(session.user.id);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -103,6 +153,57 @@ export default async function TenantDashboard() {
             </Link>
           ))}
         </div>
+      </div>
+
+      {/* My Transactions */}
+      <div>
+        <div className="flex items-center justify-between mb-4">
+          <h2 className="text-lg font-semibold text-gray-900">My Transactions</h2>
+          <Link href="/tenant/transactions" className="text-sm text-[#0F7B5A] font-medium hover:underline">
+            View all
+          </Link>
+        </div>
+        {recentTransactions.length === 0 ? (
+          <div className="bg-white rounded-xl border border-gray-100 p-6 text-center shadow-sm">
+            <CreditCard className="w-8 h-8 text-gray-300 mx-auto mb-2" />
+            <p className="text-sm font-semibold text-gray-600">No transactions yet</p>
+            <p className="text-xs text-gray-400 mt-1">When you pay via SafeRent Escrow, your transactions appear here.</p>
+            <Link
+              href="/listings"
+              className="inline-flex items-center gap-1.5 mt-3 text-sm text-[#0F7B5A] font-medium hover:underline"
+            >
+              <Search className="w-3.5 h-3.5" />
+              Find your next home
+            </Link>
+          </div>
+        ) : (
+          <div className="space-y-3">
+            {recentTransactions.map((tx) => {
+              const status = STATUS_BADGE[tx.escrowStatus] ?? { label: tx.escrowStatus, color: "text-gray-700", bg: "bg-gray-100" };
+              return (
+                <Link
+                  key={tx.id}
+                  href={`/tenant/transactions/${tx.id}`}
+                  className="block bg-white rounded-xl border border-gray-100 p-4 shadow-sm hover:shadow-md hover:border-[#0F7B5A]/30 transition-all"
+                >
+                  <div className="flex items-start justify-between gap-3">
+                    <div className="min-w-0">
+                      <p className="font-semibold text-gray-900 text-sm truncate">{tx.listing.title}</p>
+                      <p className="text-xs text-gray-500 truncate">{tx.listing.address}</p>
+                      <p className="text-xs text-gray-400 font-mono mt-1">{tx.reference}</p>
+                    </div>
+                    <div className="text-right shrink-0">
+                      <p className="font-bold text-sm text-gray-900">{formatKoboToNaira(BigInt(tx.totalAmount))}</p>
+                      <span className={`inline-block text-xs font-semibold px-2 py-0.5 rounded-full mt-1 ${status.bg} ${status.color}`}>
+                        {status.label}
+                      </span>
+                    </div>
+                  </div>
+                </Link>
+              );
+            })}
+          </div>
+        )}
       </div>
 
       {/* Active tenancy */}

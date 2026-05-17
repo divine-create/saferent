@@ -8,16 +8,14 @@ import { signIn } from "next-auth/react";
 import Link from "next/link";
 import { Input } from "@/components/ui/Input";
 import { Button } from "@/components/ui/Button";
-import { StepIndicator } from "@/components/ui/StepIndicator";
 import { RoleCard } from "@/components/ui/RoleCard";
-import { OtpInput } from "@/components/ui/OtpInput";
 import { registerSchema, type RegisterInput } from "@/lib/validations/auth";
-import { Home, Building2, Briefcase, Eye, EyeOff, ArrowLeft, ArrowRight, LayoutDashboard } from "lucide-react";
+import { Home, Building2, Briefcase, Eye, EyeOff, ArrowLeft, ArrowRight, LayoutDashboard, Mail, CheckCircle } from "lucide-react";
 
 const STEPS = [
   { label: "Role", description: "Choose account type" },
   { label: "Details", description: "Personal information" },
-  { label: "Verify", description: "Phone verification" },
+  { label: "Confirm", description: "Check your email" },
 ];
 
 const roles = [
@@ -78,12 +76,8 @@ export default function RegisterPage() {
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
-  const [otpCode, setOtpCode] = useState("");
-  const [otpError, setOtpError] = useState<string | null>(null);
-  const [sentOtp, setSentOtp] = useState<string | null>(null);
-  const [isSendingOtp, setIsSendingOtp] = useState(false);
-  const [isVerifying, setIsVerifying] = useState(false);
-  const [registeredData, setRegisteredData] = useState<{ identifier: string; phone?: string } | null>(null);
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
+  const [isSigningIn, setIsSigningIn] = useState(false);
 
   const {
     register,
@@ -121,85 +115,15 @@ export default function RegisterPage() {
         return;
       }
 
-      // Determine identifier for OTP
-      const identifier = data.phone || data.email || "";
-      setRegisteredData({ identifier, phone: data.phone });
-
-      // Send OTP if phone provided
-      if (data.phone) {
-        await sendOtp(data.phone);
-      }
-
+      setRegisteredEmail(data.email || null);
       setCurrentStep(2);
     } catch {
       setServerError("An unexpected error occurred. Please try again.");
     }
   };
 
-  const sendOtp = async (identifier: string) => {
-    setIsSendingOtp(true);
-    try {
-      const response = await fetch("/api/auth/send-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, type: "PHONE_VERIFY" }),
-      });
-      const result = await response.json();
-      if (result.code) {
-        setSentOtp(result.code);
-        console.log(`[DEV] OTP Code: ${result.code}`);
-      }
-    } catch {
-      console.error("Failed to send OTP");
-    } finally {
-      setIsSendingOtp(false);
-    }
-  };
-
-  const handleVerifyOtp = async () => {
-    if (otpCode.length !== 6) {
-      setOtpError("Please enter the 6-digit code");
-      return;
-    }
-    setOtpError(null);
-    setIsVerifying(true);
-
-    try {
-      const identifier = registeredData?.phone || registeredData?.identifier || "";
-      const response = await fetch("/api/auth/verify-otp", {
-        method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ identifier, code: otpCode, type: "PHONE_VERIFY" }),
-      });
-
-      const result = await response.json();
-
-      if (!response.ok) {
-        setOtpError(result.error ?? "Verification failed");
-        return;
-      }
-
-      // Sign in the user
-      const values = getValues();
-      const signInResult = await signIn("credentials", {
-        identifier: values.phone || values.email,
-        password: values.password,
-        redirect: false,
-      });
-
-      if (signInResult?.error) {
-        router.push("/login");
-      } else {
-        router.push("/onboarding");
-      }
-    } catch {
-      setOtpError("Verification failed. Please try again.");
-    } finally {
-      setIsVerifying(false);
-    }
-  };
-
-  const handleSkipVerification = async () => {
+  const handleContinueToApp = async () => {
+    setIsSigningIn(true);
     const values = getValues();
     const signInResult = await signIn("credentials", {
       identifier: values.phone || values.email,
@@ -212,6 +136,7 @@ export default function RegisterPage() {
     } else {
       router.push("/onboarding");
     }
+    setIsSigningIn(false);
   };
 
   return (
@@ -246,7 +171,7 @@ export default function RegisterPage() {
         <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-3">
           <div
             className="h-full bg-[#0F7B5A] rounded-full transition-all duration-500"
-            style={{ width: `${((currentStep) / (STEPS.length - 1)) * 100}%` }}
+            style={{ width: `${(currentStep / (STEPS.length - 1)) * 100}%` }}
           />
         </div>
       </div>
@@ -315,10 +240,7 @@ export default function RegisterPage() {
             </div>
           )}
 
-          <form
-            onSubmit={handleSubmit(handleStep2Submit)}
-            className="space-y-4"
-          >
+          <form onSubmit={handleSubmit(handleStep2Submit)} className="space-y-4">
             <input type="hidden" {...register("role")} value={selectedRole ?? "TENANT"} />
 
             <div className="grid grid-cols-2 gap-3">
@@ -342,7 +264,7 @@ export default function RegisterPage() {
               label="Phone Number"
               placeholder="08012345678"
               type="tel"
-              helperText="Nigerian phone number (recommended for faster verification)"
+              helperText="Nigerian phone number (optional)"
               error={errors.phone?.message}
               {...register("phone")}
             />
@@ -351,7 +273,7 @@ export default function RegisterPage() {
               label="Email Address"
               placeholder="adaobi@example.com"
               type="email"
-              helperText="Or provide email instead of phone"
+              helperText="A verification link will be sent to this email"
               error={errors.email?.message}
               {...register("email")}
             />
@@ -413,67 +335,50 @@ export default function RegisterPage() {
         </div>
       )}
 
-      {/* Step 3: Phone OTP verification */}
+      {/* Step 3: Email confirmation sent */}
       {currentStep === 2 && (
-        <div>
-          <div className="mb-8 text-center">
-            <div className="w-16 h-16 rounded-full bg-[#0F7B5A]/10 flex items-center justify-center mx-auto mb-4">
-              <svg className="w-8 h-8 text-[#0F7B5A]" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
-                <path d="M22 16.92v3a2 2 0 01-2.18 2 19.79 19.79 0 01-8.63-3.07A19.5 19.5 0 013.5 9.18 19.79 19.79 0 01.42 .5a2 2 0 012-2.18h3a2 2 0 012 1.72c.127.96.361 1.903.7 2.81a2 2 0 01-.45 2.11L6.91 8.57a16 16 0 006.54 6.54l1.65-1.79a2 2 0 012.11-.45c.907.339 1.85.573 2.81.7A2 2 0 0122 16.92z" />
-              </svg>
-            </div>
-            <h1 className="text-2xl font-bold text-gray-900">Verify your phone</h1>
-            <p className="text-sm text-gray-500 mt-1.5">
-              We sent a 6-digit code to
-            </p>
-            <p className="text-sm font-semibold text-gray-800 mt-0.5">
-              {registeredData?.phone || registeredData?.identifier}
-            </p>
-            {sentOtp && (
-              <div className="mt-3 bg-amber-50 border border-amber-200 rounded-lg px-4 py-2">
-                <p className="text-xs text-amber-700 font-medium">
-                  Dev mode: Your OTP is <span className="font-mono font-bold text-amber-900">{sentOtp}</span>
-                </p>
-              </div>
+        <div className="text-center">
+          <div className="w-16 h-16 rounded-full bg-[#0F7B5A]/10 flex items-center justify-center mx-auto mb-5">
+            {registeredEmail ? (
+              <Mail className="w-8 h-8 text-[#0F7B5A]" />
+            ) : (
+              <CheckCircle className="w-8 h-8 text-[#0F7B5A]" />
             )}
           </div>
 
-          <div className="mb-6">
-            <OtpInput
-              value={otpCode}
-              onChange={setOtpCode}
-              error={otpError ?? undefined}
-            />
-          </div>
+          <h1 className="text-2xl font-bold text-gray-900 mb-2">Account created!</h1>
+
+          {registeredEmail ? (
+            <>
+              <p className="text-gray-500 text-sm mb-1">A verification link has been sent to</p>
+              <p className="font-semibold text-gray-800 mb-4">{registeredEmail}</p>
+              <p className="text-gray-400 text-xs mb-6">
+                Click the link in your email to verify your account. You can still access the platform while you wait.
+              </p>
+            </>
+          ) : (
+            <p className="text-gray-500 text-sm mb-6">
+              Your account is ready. Continue to complete your profile setup.
+            </p>
+          )}
 
           <Button
             className="w-full"
             size="lg"
-            onClick={handleVerifyOtp}
-            isLoading={isVerifying}
-            disabled={otpCode.length !== 6}
+            onClick={handleContinueToApp}
+            isLoading={isSigningIn}
           >
-            Verify & Continue
+            Continue to SafeRent
           </Button>
 
-          <div className="mt-3 flex items-center justify-center gap-4">
-            <button
-              type="button"
-              onClick={() => registeredData?.phone && sendOtp(registeredData.phone)}
-              disabled={isSendingOtp}
-              className="text-sm text-[#0F7B5A] hover:underline disabled:opacity-50"
-            >
-              {isSendingOtp ? "Sending..." : "Resend code"}
-            </button>
-            <span className="text-gray-300">|</span>
-            <button
-              type="button"
-              onClick={handleSkipVerification}
-              className="text-sm text-gray-500 hover:text-gray-700"
-            >
-              Skip for now
-            </button>
-          </div>
+          {registeredEmail && (
+            <p className="mt-3 text-xs text-gray-400">
+              Didn&apos;t receive the email? Check your spam folder or{" "}
+              <Link href="/login" className="text-[#0F7B5A] hover:underline">
+                sign in anyway
+              </Link>
+            </p>
+          )}
         </div>
       )}
     </div>

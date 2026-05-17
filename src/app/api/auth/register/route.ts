@@ -20,10 +20,8 @@ export async function POST(request: NextRequest) {
 
     const { role, firstName, lastName, email, phone, password } = validation.data;
 
-    // Normalise phone number
     const normalizedPhone = phone ? formatPhoneNumber(phone) : undefined;
 
-    // Check for existing user
     if (email) {
       const existingEmail = await db.user.findUnique({ where: { email } });
       if (existingEmail) {
@@ -35,9 +33,7 @@ export async function POST(request: NextRequest) {
     }
 
     if (normalizedPhone) {
-      const existingPhone = await db.user.findFirst({
-        where: { phone: normalizedPhone },
-      });
+      const existingPhone = await db.user.findFirst({ where: { phone: normalizedPhone } });
       if (existingPhone) {
         return NextResponse.json(
           { error: "An account with this phone number already exists" },
@@ -50,29 +46,40 @@ export async function POST(request: NextRequest) {
     const emailVerificationToken = randomBytes(32).toString("hex");
     const emailVerificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
-    const user = await db.user.create({
-      data: {
-        email: email || null,
-        phone: normalizedPhone || null,
-        passwordHash,
-        role,
-        firstName,
-        lastName,
-        isEmailVerified: false,
-        isPhoneVerified: false,
-        emailVerificationToken,
-        emailVerificationTokenExpiry,
-      },
-      select: {
-        id: true,
-        email: true,
-        phone: true,
-        role: true,
-        firstName: true,
-        lastName: true,
-        createdAt: true,
-      },
-    });
+    // Try creating user with token fields; fall back without them if columns not yet migrated
+    let user;
+    try {
+      user = await db.user.create({
+        data: {
+          email: email || null,
+          phone: normalizedPhone || null,
+          passwordHash,
+          role,
+          firstName,
+          lastName,
+          isEmailVerified: false,
+          isPhoneVerified: false,
+          emailVerificationToken,
+          emailVerificationTokenExpiry,
+        },
+        select: { id: true, email: true, phone: true, role: true, firstName: true, lastName: true, createdAt: true },
+      });
+    } catch {
+      // Columns not yet in DB — create without token fields
+      user = await db.user.create({
+        data: {
+          email: email || null,
+          phone: normalizedPhone || null,
+          passwordHash,
+          role,
+          firstName,
+          lastName,
+          isEmailVerified: false,
+          isPhoneVerified: false,
+        },
+        select: { id: true, email: true, phone: true, role: true, firstName: true, lastName: true, createdAt: true },
+      });
+    }
 
     if (email) {
       try {

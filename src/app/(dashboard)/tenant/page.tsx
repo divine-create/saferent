@@ -101,6 +101,13 @@ async function getRecentTransactions(tenantId: string): Promise<TxSummary[]> {
   }
 }
 
+function getDayGreeting(): string {
+  const hour = new Date().getHours();
+  if (hour < 12) return "Good morning";
+  if (hour < 17) return "Good afternoon";
+  return "Good evening";
+}
+
 export default async function TenantDashboard() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
@@ -108,19 +115,32 @@ export default async function TenantDashboard() {
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
   const trustScore = session.user.trustScore ?? 0;
+  const greeting = getDayGreeting();
 
   const recentTransactions = await getRecentTransactions(session.user.id);
   const recentConversations = await getRecentConversations(session.user.id);
 
+  const trustColor = trustScore >= 80 ? "from-[#0F7B5A] to-emerald-400" : trustScore >= 60 ? "from-blue-500 to-blue-400" : trustScore >= 40 ? "from-yellow-500 to-amber-400" : "from-red-500 to-red-400";
+  const trustRingColor = trustScore >= 80 ? "ring-[#0F7B5A]/20" : trustScore >= 60 ? "ring-blue-500/20" : trustScore >= 40 ? "ring-yellow-500/20" : "ring-red-500/20";
+
   return (
     <div className="max-w-5xl mx-auto space-y-8">
       {/* Header */}
-      <div className="flex items-start justify-between">
+      <div className="flex items-start justify-between gap-4">
         <div>
-          <h1 className="text-2xl font-bold text-gray-900">Welcome back, {firstName}</h1>
-          <p className="text-gray-500 mt-1">Your SafeRent tenant dashboard</p>
+          <h1 className="text-2xl font-extrabold text-gray-900">
+            {greeting}, {firstName} 👋
+          </h1>
+          <p className="text-gray-500 mt-1">Here&apos;s your SafeRent dashboard overview.</p>
         </div>
-        <TrustScoreBadge score={trustScore} size="lg" />
+        {/* Prominent trust score card */}
+        <div className={`shrink-0 flex flex-col items-center bg-white rounded-2xl border border-gray-100 shadow-sm p-4 ring-4 ${trustRingColor}`}>
+          <div className={`w-14 h-14 rounded-full bg-gradient-to-br ${trustColor} flex items-center justify-center mb-1.5 shadow-md`}>
+            <span className="text-white font-extrabold text-lg">{trustScore}</span>
+          </div>
+          <TrustScoreBadge score={trustScore} size="sm" />
+          <p className="text-[10px] text-gray-400 mt-1">Trust Score</p>
+        </div>
       </div>
 
       {/* Verification banner */}
@@ -162,24 +182,27 @@ export default async function TenantDashboard() {
 
       {/* Quick actions */}
       <div>
-        <h2 className="text-lg font-semibold text-gray-900 mb-4">Quick Actions</h2>
+        <h2 className="text-lg font-bold text-gray-900 mb-4">Quick Actions</h2>
         <div className="grid sm:grid-cols-3 gap-4">
           {[
             {
               href: "/listings",
-              icon: <Search className="w-5 h-5 text-[#0F7B5A]" />,
+              icon: <Search className="w-6 h-6 text-[#0F7B5A]" />,
+              iconBg: "bg-[#0F7B5A]/10 group-hover:bg-[#0F7B5A]/20",
               title: "Search Listings",
               desc: "Find verified properties across Nigeria",
             },
             {
               href: "/tenant/viewings",
-              icon: <Calendar className="w-5 h-5 text-purple-600" />,
+              icon: <Calendar className="w-6 h-6 text-purple-600" />,
+              iconBg: "bg-purple-50 group-hover:bg-purple-100",
               title: "My Viewings",
               desc: "Manage booked and upcoming property viewings",
             },
             {
               href: "/tenant/payments",
-              icon: <CreditCard className="w-5 h-5 text-blue-600" />,
+              icon: <CreditCard className="w-6 h-6 text-blue-600" />,
+              iconBg: "bg-blue-50 group-hover:bg-blue-100",
               title: "Payments",
               desc: "Track escrow transactions and receipts",
             },
@@ -187,17 +210,17 @@ export default async function TenantDashboard() {
             <Link
               key={action.href}
               href={action.href}
-              className="bg-white rounded-xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:border-[#0F7B5A]/30 transition-all group"
+              className="bg-white rounded-2xl border border-gray-100 p-5 shadow-sm hover:shadow-md hover:border-[#0F7B5A]/30 transition-all group flex flex-col gap-3"
             >
-              <div className="w-10 h-10 bg-gray-50 rounded-lg flex items-center justify-center mb-3 group-hover:bg-green-50 transition-colors">
+              <div className={`w-12 h-12 rounded-xl flex items-center justify-center transition-colors ${action.iconBg}`}>
                 {action.icon}
               </div>
-              <div className="flex items-center justify-between">
-                <div>
-                  <p className="font-semibold text-gray-900 text-sm">{action.title}</p>
-                  <p className="text-gray-500 text-xs mt-0.5">{action.desc}</p>
-                </div>
-                <ChevronRight className="w-4 h-4 text-gray-400 group-hover:text-[#0F7B5A] transition-colors" />
+              <div>
+                <p className="font-bold text-gray-900 text-sm">{action.title}</p>
+                <p className="text-gray-500 text-xs mt-0.5 leading-relaxed">{action.desc}</p>
+              </div>
+              <div className="flex items-center gap-1 text-[#0F7B5A] text-xs font-semibold mt-auto">
+                Open <ChevronRight className="w-3.5 h-3.5" />
               </div>
             </Link>
           ))}

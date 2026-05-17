@@ -215,18 +215,48 @@ export default function RegisterPage() {
   };
 
   return (
-    <div className="p-6 sm:p-8">
-      {/* Step indicator */}
-      <div className="mb-7">
-        <StepIndicator steps={STEPS} currentStep={currentStep} />
+    <div>
+      {/* Progress bar */}
+      <div className="mb-8">
+        <div className="flex items-center justify-between mb-2">
+          {STEPS.map((step, i) => (
+            <div key={step.label} className="flex items-center gap-2">
+              <div className={`w-7 h-7 rounded-full flex items-center justify-center text-xs font-bold transition-all ${
+                i < currentStep
+                  ? "bg-[#0F7B5A] text-white"
+                  : i === currentStep
+                  ? "bg-[#0F7B5A] text-white ring-4 ring-[#0F7B5A]/20"
+                  : "bg-gray-100 text-gray-400"
+              }`}>
+                {i < currentStep ? (
+                  <svg className="w-3.5 h-3.5" fill="currentColor" viewBox="0 0 20 20">
+                    <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+                  </svg>
+                ) : (i + 1)}
+              </div>
+              <div className="hidden sm:block">
+                <p className={`text-xs font-semibold ${i === currentStep ? "text-gray-900" : "text-gray-400"}`}>{step.label}</p>
+              </div>
+              {i < STEPS.length - 1 && (
+                <div className={`flex-1 h-px mx-2 transition-all ${i < currentStep ? "bg-[#0F7B5A]" : "bg-gray-200"}`} style={{ width: "40px" }} />
+              )}
+            </div>
+          ))}
+        </div>
+        <div className="w-full h-1.5 bg-gray-100 rounded-full overflow-hidden mt-3">
+          <div
+            className="h-full bg-[#0F7B5A] rounded-full transition-all duration-500"
+            style={{ width: `${((currentStep) / (STEPS.length - 1)) * 100}%` }}
+          />
+        </div>
       </div>
 
       {/* Step 1: Role selection */}
       {currentStep === 0 && (
         <div>
           <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Create your account</h1>
-            <p className="text-sm text-gray-500 mt-1">How will you use SafeRent?</p>
+            <h1 className="text-3xl font-extrabold text-gray-900 mb-1">Join SafeRent</h1>
+            <p className="text-gray-500">How will you use SafeRent?</p>
           </div>
           <div className="grid gap-3">
             {roles.map((role) => (
@@ -243,7 +273,7 @@ export default function RegisterPage() {
             ))}
           </div>
           <Button
-            className="w-full mt-5"
+            className="w-full mt-5 !h-12 text-base font-bold rounded-xl"
             size="lg"
             onClick={goToStep2}
             disabled={!selectedRole}
@@ -253,7 +283,7 @@ export default function RegisterPage() {
           </Button>
           <p className="mt-4 text-center text-sm text-gray-500">
             Already have an account?{" "}
-            <Link href="/login" className="text-[#0F7B5A] font-semibold hover:underline">
+            <Link href="/login" className="text-[#0F7B5A] font-bold hover:underline">
               Sign in
             </Link>
           </p>

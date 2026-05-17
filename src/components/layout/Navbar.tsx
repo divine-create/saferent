@@ -14,6 +14,7 @@ import {
   Shield,
   MessageCircle,
 } from "lucide-react";
+import { NotificationBell } from "@/components/layout/NotificationBell";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -79,18 +80,21 @@ export function Navbar() {
           {/* Auth Area */}
           <div className="flex items-center gap-3">
             {session && (
-              <Link
-                href="/messages"
-                className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
-                title="Messages"
-              >
-                <MessageCircle className="w-5 h-5 text-gray-600" />
-                {unreadCount > 0 && (
-                  <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
-                    {unreadCount > 99 ? "99+" : unreadCount}
-                  </span>
-                )}
-              </Link>
+              <>
+                <NotificationBell />
+                <Link
+                  href="/messages"
+                  className="relative p-2 rounded-lg hover:bg-gray-100 transition-colors"
+                  title="Messages"
+                >
+                  <MessageCircle className="w-5 h-5 text-gray-600" />
+                  {unreadCount > 0 && (
+                    <span className="absolute -top-0.5 -right-0.5 bg-red-500 text-white text-[10px] font-bold rounded-full min-w-[16px] h-4 flex items-center justify-center px-0.5">
+                      {unreadCount > 99 ? "99+" : unreadCount}
+                    </span>
+                  )}
+                </Link>
+              </>
             )}
             {session ? (
               <div className="relative">

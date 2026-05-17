@@ -37,6 +37,7 @@ export default function LoginPage() {
       if (result?.error) {
         setAuthError(result.error);
       } else {
+        // Refresh session then let middleware redirect to role-based dashboard
         router.push("/onboarding");
         router.refresh();
       }

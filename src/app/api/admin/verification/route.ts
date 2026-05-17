@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mockAdminUsers, mockPendingListings } from "@/lib/mock-admin";
+import { serializePrisma } from "@/lib/serialize";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -49,7 +50,7 @@ export async function GET(req: NextRequest) {
         : Promise.resolve([]),
     ]);
 
-    return NextResponse.json({ identityUsers, pendingListings });
+    return NextResponse.json({ identityUsers, pendingListings: serializePrisma(pendingListings) });
   } catch {
     const identityUsers = mockAdminUsers.filter(
       (u) => (u.bvnVerificationStatus as string) === "PENDING" || (u.idDocumentStatus as string) === "PENDING"

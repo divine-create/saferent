@@ -327,12 +327,21 @@ export default async function ListingDetailPage({ params }: PageProps) {
                 </div>
 
                 <div className="mt-5 space-y-2">
-                  <a
-                    href={`/listings/${id}/pay`}
-                    className="block w-full py-3 bg-[#0F7B5A] text-white text-center font-semibold rounded-xl hover:bg-[#0a6049] transition-colors"
-                  >
-                    Pay with SafeRent Escrow
-                  </a>
+                  {session ? (
+                    <a
+                      href={`/listings/${id}/pay`}
+                      className="block w-full py-3 bg-[#0F7B5A] text-white text-center font-semibold rounded-xl hover:bg-[#0a6049] transition-colors"
+                    >
+                      Pay with SafeRent Escrow
+                    </a>
+                  ) : (
+                    <a
+                      href={`/login?callbackUrl=/listings/${id}`}
+                      className="block w-full py-3 bg-[#0F7B5A] text-white text-center font-semibold rounded-xl hover:bg-[#0a6049] transition-colors"
+                    >
+                      Sign in to Pay with Escrow
+                    </a>
+                  )}
                 </div>
 
                 {/* Enquiry + viewing buttons */}
@@ -376,7 +385,7 @@ export default async function ListingDetailPage({ params }: PageProps) {
                 <h3 className="text-sm font-bold text-gray-700 mb-3">Share this listing</h3>
                 <div className="flex gap-2">
                   <a
-                    href={`https://wa.me/?text=${encodeURIComponent(`Check out this property on SafeRent: ${listing.title} — ${typeof window !== "undefined" ? window.location.href : ""}`)}`}
+                    href={`https://wa.me/?text=${encodeURIComponent(`Check out this property on SafeRent: ${listing.title} — https://saferent-gamma.vercel.app/listings/${id}`)}`}
                     target="_blank"
                     rel="noopener noreferrer"
                     className="flex-1 flex items-center justify-center gap-2 py-2 bg-green-500 text-white text-xs font-semibold rounded-xl hover:bg-green-600 transition-colors"

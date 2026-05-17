@@ -2,7 +2,7 @@ import { getToken } from "next-auth/jwt";
 import { NextResponse } from "next/server";
 import type { NextRequest } from "next/server";
 
-const PROTECTED_PREFIXES = ["/tenant", "/landlord", "/agent", "/admin", "/onboarding"];
+const PROTECTED_PREFIXES = ["/tenant", "/landlord", "/agent", "/admin", "/onboarding", "/developer", "/settings", "/messages"];
 const AUTH_PATHS = ["/login", "/register"];
 
 export async function middleware(req: NextRequest) {
@@ -39,6 +39,7 @@ function roleToHome(role: string): string {
   if (role === "LANDLORD") return "/landlord";
   if (role === "AGENT") return "/agent";
   if (role === "ADMIN") return "/admin";
+  if (role === "DEVELOPER") return "/developer";
   return "/tenant";
 }
 

@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mockPendingListings } from "@/lib/mock-admin";
+import { serializePrisma } from "@/lib/serialize";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -44,7 +45,7 @@ export async function GET(req: NextRequest) {
       db.listing.count({ where }),
     ]);
 
-    return NextResponse.json({ listings, total, page });
+    return NextResponse.json({ listings: serializePrisma(listings), total, page });
   } catch {
     return NextResponse.json({ listings: mockPendingListings, total: mockPendingListings.length, page: 1 });
   }

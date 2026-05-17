@@ -3,6 +3,7 @@ import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
 import { mockOpenDisputes } from "@/lib/mock-admin";
+import { serializePrisma } from "@/lib/serialize";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -36,7 +37,7 @@ export async function GET(req: NextRequest) {
       },
     });
 
-    return NextResponse.json({ disputes });
+    return NextResponse.json({ disputes: serializePrisma(disputes) });
   } catch {
     const filtered = status === "ALL"
       ? mockOpenDisputes

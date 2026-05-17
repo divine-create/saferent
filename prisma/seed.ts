@@ -1,9 +1,21 @@
-import { PrismaClient, UserRole, VerificationStatus, BadgeTier, AgentPlan, ListingStatus, PropertyType, FurnishingStatus, LetType, PaymentFrequency, PropertyCondition } from "@prisma/client"
-import { PrismaPg } from "@prisma/adapter-pg"
+import { PrismaClient } from "@prisma/client"
 import bcrypt from "bcryptjs"
 
-const adapter = new PrismaPg({ connectionString: process.env.DATABASE_URL! })
-const db = new PrismaClient({ adapter } as ConstructorParameters<typeof PrismaClient>[0])
+// Use plain string literals for Prisma 7 enum compatibility
+const UserRole = { TENANT: "TENANT", LANDLORD: "LANDLORD", AGENT: "AGENT", ADMIN: "ADMIN", DEVELOPER: "DEVELOPER" } as const
+const VerificationStatus = { NOT_SUBMITTED: "NOT_SUBMITTED", PENDING: "PENDING", VERIFIED: "VERIFIED", FAILED: "FAILED" } as const
+const BadgeTier = { NONE: "NONE", ID_VERIFIED: "ID_VERIFIED", PROPERTY_VERIFIED: "PROPERTY_VERIFIED", CERTIFIED: "CERTIFIED" } as const
+const AgentPlan = { NONE: "NONE", BASIC: "BASIC", PRO: "PRO", ENTERPRISE: "ENTERPRISE" } as const
+const ListingStatus = { DRAFT: "DRAFT", PENDING_VERIFICATION: "PENDING_VERIFICATION", VERIFIED_ACTIVE: "VERIFIED_ACTIVE", UNVERIFIED_ACTIVE: "UNVERIFIED_ACTIVE", PAUSED: "PAUSED", LET_AGREED: "LET_AGREED", OCCUPIED: "OCCUPIED", EXPIRED: "EXPIRED" } as const
+const PropertyType = { FLAT: "FLAT", SELF_CONTAINED: "SELF_CONTAINED", DUPLEX: "DUPLEX", BUNGALOW: "BUNGALOW", TERRACED_HOUSE: "TERRACED_HOUSE", DETACHED_HOUSE: "DETACHED_HOUSE", ROOM_AND_PARLOUR: "ROOM_AND_PARLOUR", STUDIO: "STUDIO" } as const
+const FurnishingStatus = { UNFURNISHED: "UNFURNISHED", SEMI_FURNISHED: "SEMI_FURNISHED", FULLY_FURNISHED: "FULLY_FURNISHED" } as const
+const LetType = { LONG_LET: "LONG_LET", SHORT_LET: "SHORT_LET" } as const
+const PaymentFrequency = { ANNUAL: "ANNUAL", BIANNUAL: "BIANNUAL", QUARTERLY: "QUARTERLY", MONTHLY: "MONTHLY" } as const
+const PropertyCondition = { NEW: "NEW", GOOD: "GOOD", NEEDS_MINOR_WORK: "NEEDS_MINOR_WORK" } as const
+
+const db = new PrismaClient({
+  datasources: { db: { url: process.env.DATABASE_URL } },
+} as ConstructorParameters<typeof PrismaClient>[0])
 
 const DEFAULT_PASSWORD = "SafeRent2026!"
 

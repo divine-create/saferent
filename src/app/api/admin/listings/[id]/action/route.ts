@@ -55,7 +55,8 @@ export async function POST(
       default:
         return NextResponse.json({ error: "Invalid action" }, { status: 400 });
     }
-  } catch {
-    return NextResponse.json({ success: true, message: `Action ${body.action} applied (mock)` });
+  } catch (err) {
+    console.error("Admin listing action failed:", err);
+    return NextResponse.json({ error: "Action failed" }, { status: 500 });
   }
 }

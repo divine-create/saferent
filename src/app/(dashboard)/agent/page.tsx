@@ -3,6 +3,37 @@ import { authOptions } from "@/lib/auth";
 import { redirect } from "next/navigation";
 import { Building, Users, TrendingUp, Star, ChevronRight, CreditCard, Plus, Crown } from "lucide-react";
 import Link from "next/link";
+import { db } from "@/lib/db";
+import { formatKoboToNaira } from "@/lib/utils";
+
+async function getAgentStats(agentId: string) {
+  const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+  const thirtyDaysAgo = new Date(Date.now() - 30 * 24 * 60 * 60 * 1000);
+
+  const [activeListings, recentLeads, completedLets, commissionYTD, avgRating] = await Promise.all([
+    db.listing.count({ where: { agentId, status: { in: ["VERIFIED_ACTIVE", "UNVERIFIED_ACTIVE"] } } }),
+    db.cRMContact.count({ where: { agentId, createdAt: { gte: thirtyDaysAgo } } }),
+    db.escrowTransaction.count({ where: { listing: { agentId }, escrowStatus: "RELEASED" } }),
+    db.agentCommission.aggregate({
+      where: { agentId, createdAt: { gte: startOfYear } },
+      _sum: { amount: true },
+    }),
+    db.review.aggregate({
+      where: { revieweeId: agentId },
+      _avg: { overallRating: true },
+      _count: { id: true },
+    }),
+  ]);
+
+  return {
+    activeListings,
+    recentLeads,
+    completedLets,
+    commissionYTD: Number(commissionYTD._sum.amount ?? 0),
+    avgRating: avgRating._avg.overallRating,
+    reviewCount: avgRating._count.id,
+  };
+}
 
 export default async function AgentDashboard() {
   const session = await getServerSession(authOptions);
@@ -10,6 +41,7 @@ export default async function AgentDashboard() {
   if (session.user.role !== "AGENT") redirect("/login");
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
+  const agentStats = await getAgentStats(session.user.id);
 
   return (
     <div className="max-w-5xl mx-auto space-y-8">
@@ -58,10 +90,10 @@ export default async function AgentDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Active Listings", value: "0", icon: <Building className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
-          { label: "Leads (30 days)", value: "0", icon: <Users className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
-          { label: "Completed Lets", value: "0", icon: <TrendingUp className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
-          { label: "Commission YTD", value: "₦0", icon: <CreditCard className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
+          { label: "Active Listings", value: agentStats.activeListings, icon: <Building className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
+          { label: "Leads (30 days)", value: agentStats.recentLeads, icon: <Users className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
+          { label: "Completed Lets", value: agentStats.completedLets, icon: <TrendingUp className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
+          { label: "Commission YTD", value: formatKoboToNaira(BigInt(agentStats.commissionYTD)), icon: <CreditCard className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <div className={`w-8 h-8 rounded-lg ${s.color} flex items-center justify-center mb-3`}>{s.icon}</div>
@@ -106,11 +138,16 @@ export default async function AgentDashboard() {
         <div className="bg-white rounded-xl border border-gray-100 p-6 shadow-sm">
           <div className="flex items-center gap-4 mb-5">
             <div className="w-16 h-16 bg-gray-50 rounded-full flex items-center justify-center">
-              <Star className="w-8 h-8 text-gray-300" />
+              <Star className={`w-8 h-8 ${agentStats.avgRating ? "text-amber-400" : "text-gray-300"}`} />
             </div>
             <div>
-              <div className="text-3xl font-extrabold text-gray-900">—<span className="text-base text-gray-400">/5.0</span></div>
-              <p className="text-sm text-gray-500">Complete lets to build your rating</p>
+              <div className="text-3xl font-extrabold text-gray-900">
+                {agentStats.avgRating ? agentStats.avgRating.toFixed(1) : "—"}
+                <span className="text-base text-gray-400">/5.0</span>
+              </div>
+              <p className="text-sm text-gray-500">
+                {agentStats.reviewCount > 0 ? `${agentStats.reviewCount} review${agentStats.reviewCount !== 1 ? "s" : ""}` : "Complete lets to build your rating"}
+              </p>
             </div>
           </div>
           <div className="space-y-2 text-sm">

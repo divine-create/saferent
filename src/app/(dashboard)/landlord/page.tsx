@@ -98,14 +98,35 @@ async function getRecentTransactions(landlordId: string): Promise<TxSummary[]> {
   }
 }
 
+async function getLandlordStats(landlordId: string) {
+  const startOfYear = new Date(new Date().getFullYear(), 0, 1);
+  const [totalUnits, occupiedUnits, rentYTD] = await Promise.all([
+    db.listing.count({ where: { ownerId: landlordId } }),
+    db.listing.count({ where: { ownerId: landlordId, status: "OCCUPIED" } }),
+    db.escrowTransaction.aggregate({
+      where: { landlordId, escrowStatus: "RELEASED", updatedAt: { gte: startOfYear } },
+      _sum: { rentAmount: true },
+    }),
+  ]);
+  return {
+    totalUnits,
+    occupiedUnits,
+    vacantUnits: totalUnits - occupiedUnits,
+    rentYTD: Number(rentYTD._sum.rentAmount ?? 0),
+  };
+}
+
 export default async function LandlordDashboard() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
   if (session.user.role !== "LANDLORD") redirect("/login");
 
   const firstName = session.user.name?.split(" ")[0] ?? "there";
-  const recentTransactions = await getRecentTransactions(session.user.id);
-  const recentConversations = await getRecentConversationsForLandlord(session.user.id);
+  const [recentTransactions, recentConversations, landlordStats] = await Promise.all([
+    getRecentTransactions(session.user.id),
+    getRecentConversationsForLandlord(session.user.id),
+    getLandlordStats(session.user.id),
+  ]);
   const pendingSignatures = recentTransactions.filter(
     (t) => t.agreement?.tenantSignedAt && !t.agreement?.landlordSignedAt
   );
@@ -142,10 +163,10 @@ export default async function LandlordDashboard() {
       {/* Portfolio stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Total Units", value: "0", icon: <Building className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
-          { label: "Occupied", value: "0", icon: <Users className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
-          { label: "Vacant", value: "0", icon: <Building className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
-          { label: "Rent YTD", value: "₦0", icon: <TrendingUp className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
+          { label: "Total Units", value: landlordStats.totalUnits, icon: <Building className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
+          { label: "Occupied", value: landlordStats.occupiedUnits, icon: <Users className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
+          { label: "Vacant", value: landlordStats.vacantUnits, icon: <Building className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
+          { label: "Rent YTD", value: formatKoboToNaira(BigInt(landlordStats.rentYTD)), icon: <TrendingUp className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
         ].map((s) => (
           <div key={s.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <div className={`w-8 h-8 rounded-lg ${s.color} flex items-center justify-center mb-3`}>{s.icon}</div>

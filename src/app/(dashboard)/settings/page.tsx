@@ -51,6 +51,42 @@ export default function SettingsPage() {
     Object.fromEntries(NOTIFICATION_EVENTS.map((e) => [e.key, false]))
   );
 
+  const [error, setError] = useState<string | null>(null);
+
+  const handleSaveAccount = async () => {
+    setError(null);
+    const body: Record<string, string> = {};
+    if (email) body.email = email;
+    if (phone) body.phone = phone;
+    if (newPassword) {
+      body.newPassword = newPassword;
+      body.confirmPassword = confirmPassword;
+    }
+    const res = await fetch("/api/user/account", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(body),
+    });
+    const data = await res.json();
+    if (!res.ok) { setError(data.error ?? "Failed to save"); return; }
+    setSaved(true);
+    setNewPassword("");
+    setConfirmPassword("");
+    setTimeout(() => setSaved(false), 2500);
+  };
+
+  const handleSaveCurrency = async () => {
+    setError(null);
+    const res = await fetch("/api/user/preferences", {
+      method: "PATCH",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ preferredCurrency: currency }),
+    });
+    if (!res.ok) { setError("Failed to save currency"); return; }
+    setSaved(true);
+    setTimeout(() => setSaved(false), 2500);
+  };
+
   const handleSave = async () => {
     setSaved(true);
     setTimeout(() => setSaved(false), 2500);
@@ -98,6 +134,11 @@ export default function SettingsPage() {
               Settings saved successfully
             </div>
           )}
+          {error && (
+            <div className="mb-4 bg-red-50 border border-red-100 rounded-xl px-4 py-3 text-sm text-red-700">
+              {error}
+            </div>
+          )}
 
           {/* Account */}
           {section === "account" && (
@@ -130,7 +171,7 @@ export default function SettingsPage() {
                     <Input label="Confirm new password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} placeholder="Repeat new password" />
                   </div>
                 </div>
-                <Button onClick={handleSave} className="w-full">Save Changes</Button>
+                <Button onClick={handleSaveAccount} className="w-full">Save Changes</Button>
               </div>
             </div>
           )}
@@ -214,7 +255,7 @@ export default function SettingsPage() {
                 ))}
               </div>
               <div className="mt-5">
-                <Button onClick={handleSave}>Save Currency</Button>
+                <Button onClick={handleSaveCurrency}>Save Currency</Button>
               </div>
             </div>
           )}

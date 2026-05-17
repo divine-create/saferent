@@ -1,10 +1,5 @@
 import { requireAdmin } from "@/lib/admin-auth";
-import {
-  mockPlatformStats,
-  mockRecentSignups,
-  mockOpenDisputes,
-  mockPendingVerifications,
-} from "@/lib/mock-admin";
+import { db } from "@/lib/db";
 import { formatKoboToNaira } from "@/lib/utils";
 import { Badge } from "@/components/ui/Badge";
 import {
@@ -81,9 +76,127 @@ function SlaCountdown({ deadline }: { deadline: Date | null }) {
   return <span className={`text-xs font-medium ${color}`}>{label}</span>;
 }
 
+async function getPlatformStats() {
+  const now = new Date();
+  const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
+  const startOfToday = new Date(now.getFullYear(), now.getMonth(), now.getDate());
+
+  const [
+    totalUsers,
+    tenants,
+    landlords,
+    agents,
+    activeListings,
+    txThisMonth,
+    escrowHeld,
+    openDisputes,
+    verificationQueue,
+    newSignupsToday,
+    revenueThisMonth,
+  ] = await Promise.all([
+    db.user.count(),
+    db.user.count({ where: { role: "TENANT" } }),
+    db.user.count({ where: { role: "LANDLORD" } }),
+    db.user.count({ where: { role: "AGENT" } }),
+    db.listing.count({ where: { status: { in: ["VERIFIED_ACTIVE", "UNVERIFIED_ACTIVE"] } } }),
+    db.escrowTransaction.findMany({
+      where: { createdAt: { gte: startOfMonth } },
+      select: { totalAmount: true },
+    }),
+    db.escrowTransaction.aggregate({
+      where: { escrowStatus: "FUNDED" },
+      _sum: { totalAmount: true },
+    }),
+    db.dispute.count({ where: { status: { in: ["OPEN", "EVIDENCE_COLLECTION", "MEDIATION"] } } }),
+    db.user.count({ where: { idDocumentStatus: "PENDING" } }),
+    db.user.count({ where: { createdAt: { gte: startOfToday } } }),
+    db.escrowTransaction.aggregate({
+      where: { escrowStatus: "RELEASED", updatedAt: { gte: startOfMonth } },
+      _sum: { safeRentFee: true },
+    }),
+  ]);
+
+  return {
+    totalUsers,
+    tenants,
+    landlords,
+    agents,
+    activeListings,
+    transactionsThisMonth: txThisMonth.length,
+    transactionValueThisMonth: txThisMonth.reduce((sum, t) => sum + Number(t.totalAmount), 0),
+    escrowHeld: Number(escrowHeld._sum.totalAmount ?? 0),
+    openDisputes,
+    verificationQueue,
+    newSignupsToday,
+    platformRevenueThisMonth: Number(revenueThisMonth._sum.safeRentFee ?? 0),
+  };
+}
+
+async function getRecentSignups() {
+  return db.user.findMany({
+    orderBy: { createdAt: "desc" },
+    take: 5,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      role: true,
+      bvnVerificationStatus: true,
+    },
+  });
+}
+
+async function getOpenDisputes() {
+  return db.dispute.findMany({
+    where: { status: { in: ["OPEN", "EVIDENCE_COLLECTION", "MEDIATION"] } },
+    orderBy: { createdAt: "asc" },
+    take: 5,
+    select: {
+      id: true,
+      category: true,
+      status: true,
+      evidenceDeadline: true,
+      transaction: {
+        select: {
+          reference: true,
+          listing: { select: { address: true } },
+        },
+      },
+    },
+  });
+}
+
+async function getPendingVerifications() {
+  const users = await db.user.findMany({
+    where: { idDocumentStatus: "PENDING" },
+    orderBy: { updatedAt: "asc" },
+    take: 5,
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      role: true,
+      profile: { select: { governmentIdType: true } },
+    },
+  });
+  return users.map((u) => ({
+    id: u.id,
+    type: "user" as const,
+    name: [u.firstName, u.lastName].filter(Boolean).join(" ") || "Unknown",
+    docType: u.profile?.governmentIdType?.replace(/_/g, " ") ?? "ID Document",
+  }));
+}
+
 export default async function AdminDashboardPage() {
   await requireAdmin();
-  const stats = mockPlatformStats;
+
+  const [stats, recentSignups, openDisputes, pendingVerifications] = await Promise.all([
+    getPlatformStats(),
+    getRecentSignups(),
+    getOpenDisputes(),
+    getPendingVerifications(),
+  ]);
 
   const metrics = [
     {
@@ -146,7 +259,6 @@ export default async function AdminDashboardPage() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
       <div>
         <h1 className="text-2xl font-bold text-gray-900">Admin Dashboard</h1>
         <p className="text-gray-500 text-sm mt-1">
@@ -154,14 +266,12 @@ export default async function AdminDashboardPage() {
         </p>
       </div>
 
-      {/* Metrics grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         {metrics.map((m) => (
           <MetricCard key={m.title} {...m} />
         ))}
       </div>
 
-      {/* Bottom 3-col grid */}
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Recent Signups */}
         <div className="bg-white rounded-xl border border-gray-200 p-5 shadow-sm">
@@ -172,7 +282,10 @@ export default async function AdminDashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {mockRecentSignups.map((user) => (
+            {recentSignups.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">No users yet</p>
+            )}
+            {recentSignups.map((user) => (
               <Link
                 key={user.id}
                 href={`/admin/users/${user.id}`}
@@ -180,12 +293,12 @@ export default async function AdminDashboardPage() {
               >
                 <div className="w-8 h-8 rounded-full bg-gray-100 flex items-center justify-center flex-shrink-0">
                   <span className="text-xs font-bold text-gray-600">
-                    {user.firstName.charAt(0)}{user.lastName.charAt(0)}
+                    {(user.firstName?.[0] ?? "?")}{ (user.lastName?.[0] ?? "")}
                   </span>
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">
-                    {user.firstName} {user.lastName}
+                    {[user.firstName, user.lastName].filter(Boolean).join(" ") || "—"}
                   </p>
                   <p className="text-xs text-gray-400 truncate">{user.email}</p>
                 </div>
@@ -207,7 +320,7 @@ export default async function AdminDashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {mockOpenDisputes.map((d) => (
+            {openDisputes.map((d) => (
               <Link
                 key={d.id}
                 href={`/admin/disputes/${d.id}`}
@@ -228,7 +341,7 @@ export default async function AdminDashboardPage() {
                 </div>
               </Link>
             ))}
-            {mockOpenDisputes.length === 0 && (
+            {openDisputes.length === 0 && (
               <p className="text-sm text-gray-400 text-center py-4">No active disputes</p>
             )}
           </div>
@@ -243,18 +356,17 @@ export default async function AdminDashboardPage() {
             </Link>
           </div>
           <div className="space-y-3">
-            {mockPendingVerifications.map((v) => (
+            {pendingVerifications.length === 0 && (
+              <p className="text-sm text-gray-400 text-center py-4">No pending verifications</p>
+            )}
+            {pendingVerifications.map((v) => (
               <Link
                 key={`${v.type}-${v.id}`}
-                href={v.type === "user" ? `/admin/users/${v.id}` : `/admin/listings/${v.id}`}
+                href={`/admin/users/${v.id}`}
                 className="flex items-center gap-3 hover:bg-gray-50 rounded-lg p-1.5 -mx-1.5 transition-colors"
               >
-                <div className={`w-8 h-8 rounded-full flex items-center justify-center flex-shrink-0 ${v.type === "user" ? "bg-blue-100" : "bg-purple-100"}`}>
-                  {v.type === "user" ? (
-                    <Users className="w-4 h-4 text-blue-600" />
-                  ) : (
-                    <Building2 className="w-4 h-4 text-purple-600" />
-                  )}
+                <div className="w-8 h-8 rounded-full bg-blue-100 flex items-center justify-center flex-shrink-0">
+                  <Users className="w-4 h-4 text-blue-600" />
                 </div>
                 <div className="flex-1 min-w-0">
                   <p className="text-sm font-medium text-gray-900 truncate">{v.name}</p>

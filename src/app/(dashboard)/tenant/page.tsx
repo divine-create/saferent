@@ -108,6 +108,20 @@ function getDayGreeting(): string {
   return "Good evening";
 }
 
+async function getTenantStats(tenantId: string) {
+  const [activeTenancy, savedCount, viewingCount, unreadNotifs] = await Promise.all([
+    db.escrowTransaction.findFirst({
+      where: { tenantId, escrowStatus: { in: ["FUNDED", "RELEASED"] } },
+      include: { listing: { select: { title: true, address: true } } },
+      orderBy: { createdAt: "desc" },
+    }),
+    db.savedListing.count({ where: { userId: tenantId } }),
+    db.viewingBooking.count({ where: { tenantId, status: { in: ["REQUESTED", "CONFIRMED"] } } }),
+    db.notification.count({ where: { userId: tenantId, isRead: false } }),
+  ]);
+  return { activeTenancy, savedCount, viewingCount, unreadNotifs };
+}
+
 export default async function TenantDashboard() {
   const session = await getServerSession(authOptions);
   if (!session) redirect("/login");
@@ -117,8 +131,11 @@ export default async function TenantDashboard() {
   const trustScore = session.user.trustScore ?? 0;
   const greeting = getDayGreeting();
 
-  const recentTransactions = await getRecentTransactions(session.user.id);
-  const recentConversations = await getRecentConversations(session.user.id);
+  const [recentTransactions, recentConversations, tenantStats] = await Promise.all([
+    getRecentTransactions(session.user.id),
+    getRecentConversations(session.user.id),
+    getTenantStats(session.user.id),
+  ]);
 
   const trustColor = trustScore >= 80 ? "from-[#0F7B5A] to-emerald-400" : trustScore >= 60 ? "from-blue-500 to-blue-400" : trustScore >= 40 ? "from-yellow-500 to-amber-400" : "from-red-500 to-red-400";
   const trustRingColor = trustScore >= 80 ? "ring-[#0F7B5A]/20" : trustScore >= 60 ? "ring-blue-500/20" : trustScore >= 40 ? "ring-yellow-500/20" : "ring-red-500/20";
@@ -165,10 +182,10 @@ export default async function TenantDashboard() {
       {/* Stats */}
       <div className="grid grid-cols-2 md:grid-cols-4 gap-4">
         {[
-          { label: "Active Tenancy", value: "None", icon: <Home className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
-          { label: "Saved Listings", value: "0", icon: <Search className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
-          { label: "Scheduled Viewings", value: "0", icon: <Calendar className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
-          { label: "Notifications", value: "0", icon: <Bell className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
+          { label: "Active Tenancy", value: tenantStats.activeTenancy ? "Active" : "None", icon: <Home className="w-4 h-4" />, color: "text-[#0F7B5A] bg-green-50" },
+          { label: "Saved Listings", value: tenantStats.savedCount, icon: <Search className="w-4 h-4" />, color: "text-blue-600 bg-blue-50" },
+          { label: "Scheduled Viewings", value: tenantStats.viewingCount, icon: <Calendar className="w-4 h-4" />, color: "text-purple-600 bg-purple-50" },
+          { label: "Notifications", value: tenantStats.unreadNotifs, icon: <Bell className="w-4 h-4" />, color: "text-orange-600 bg-orange-50" },
         ].map((stat) => (
           <div key={stat.label} className="bg-white rounded-xl border border-gray-100 p-4 shadow-sm">
             <div className={`w-8 h-8 rounded-lg ${stat.color} flex items-center justify-center mb-3`}>

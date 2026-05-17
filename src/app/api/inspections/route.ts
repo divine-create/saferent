@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockInspections } from "@/lib/mock-property";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -20,11 +19,9 @@ export async function GET(req: NextRequest) {
       orderBy: { scheduledDate: "desc" },
     });
     return NextResponse.json({ inspections });
-  } catch {
-    const filtered = tenancyId
-      ? mockInspections.filter((i) => i.tenancyId === tenancyId)
-      : mockInspections;
-    return NextResponse.json({ inspections: filtered });
+  } catch (err) {
+    console.error("Failed to fetch inspections:", err);
+    return NextResponse.json({ error: "Failed to fetch inspections" }, { status: 500 });
   }
 }
 

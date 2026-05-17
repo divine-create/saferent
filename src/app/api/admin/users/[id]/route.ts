@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockAdminUsers } from "@/lib/mock-admin";
 
 export async function GET(
   _req: NextRequest,
@@ -42,9 +41,8 @@ export async function GET(
     if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
 
     return NextResponse.json({ user });
-  } catch {
-    const user = mockAdminUsers.find((u) => u.id === id);
-    if (!user) return NextResponse.json({ error: "Not found" }, { status: 404 });
-    return NextResponse.json({ user });
+  } catch (err) {
+    console.error("Failed to fetch user:", err);
+    return NextResponse.json({ error: "Failed to fetch user" }, { status: 500 });
   }
 }

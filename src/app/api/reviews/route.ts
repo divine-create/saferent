@@ -2,8 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockReviews } from "@/lib/reviews";
-
 export async function GET(req: NextRequest) {
   const { searchParams } = new URL(req.url);
   const revieweeId = searchParams.get("revieweeId");
@@ -20,11 +18,9 @@ export async function GET(req: NextRequest) {
       orderBy: { createdAt: "desc" },
     });
     return NextResponse.json({ reviews });
-  } catch {
-    const filtered = revieweeId
-      ? mockReviews.filter((r) => r.revieweeId === revieweeId)
-      : mockReviews;
-    return NextResponse.json({ reviews: filtered });
+  } catch (err) {
+    console.error("Failed to fetch reviews:", err);
+    return NextResponse.json({ error: "Failed to fetch reviews" }, { status: 500 });
   }
 }
 

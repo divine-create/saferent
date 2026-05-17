@@ -1,8 +1,10 @@
 import { NextRequest, NextResponse } from "next/server";
 import bcrypt from "bcryptjs";
+import { randomBytes } from "crypto";
 import { db } from "@/lib/db";
 import { registerSchema } from "@/lib/validations/auth";
 import { formatPhoneNumber } from "@/lib/utils";
+import { sendVerificationEmail } from "@/lib/email";
 
 export async function POST(request: NextRequest) {
   try {
@@ -45,6 +47,8 @@ export async function POST(request: NextRequest) {
     }
 
     const passwordHash = await bcrypt.hash(password, 12);
+    const emailVerificationToken = randomBytes(32).toString("hex");
+    const emailVerificationTokenExpiry = new Date(Date.now() + 24 * 60 * 60 * 1000);
 
     const user = await db.user.create({
       data: {
@@ -56,6 +60,8 @@ export async function POST(request: NextRequest) {
         lastName,
         isEmailVerified: false,
         isPhoneVerified: false,
+        emailVerificationToken,
+        emailVerificationTokenExpiry,
       },
       select: {
         id: true,
@@ -68,8 +74,16 @@ export async function POST(request: NextRequest) {
       },
     });
 
+    if (email) {
+      try {
+        await sendVerificationEmail(email, emailVerificationToken, firstName);
+      } catch (emailErr) {
+        console.error("Failed to send verification email:", emailErr);
+      }
+    }
+
     return NextResponse.json(
-      { success: true, user },
+      { success: true, user, message: "Account created. Please check your email to verify your account." },
       { status: 201 }
     );
   } catch (error) {

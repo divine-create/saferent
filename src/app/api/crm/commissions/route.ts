@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockCommissions } from "@/lib/mock-crm";
 
 export async function GET(_req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -37,7 +36,8 @@ export async function GET(_req: NextRequest) {
       },
     }));
     return NextResponse.json({ commissions: serialized });
-  } catch {
-    return NextResponse.json({ commissions: mockCommissions });
+  } catch (err) {
+    console.error("Failed to fetch commissions:", err);
+    return NextResponse.json({ error: "Failed to fetch commissions" }, { status: 500 });
   }
 }

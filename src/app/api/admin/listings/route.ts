@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockPendingListings } from "@/lib/mock-admin";
 import { serializePrisma } from "@/lib/serialize";
 
 export async function GET(req: NextRequest) {
@@ -46,7 +45,8 @@ export async function GET(req: NextRequest) {
     ]);
 
     return NextResponse.json({ listings: serializePrisma(listings), total, page });
-  } catch {
-    return NextResponse.json({ listings: mockPendingListings, total: mockPendingListings.length, page: 1 });
+  } catch (err) {
+    console.error("Failed to fetch admin listings:", err);
+    return NextResponse.json({ error: "Failed to fetch listings" }, { status: 500 });
   }
 }

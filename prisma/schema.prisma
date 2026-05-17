@@ -57,6 +57,8 @@ model User {
   role                   UserRole           @default(TENANT)
   isEmailVerified        Boolean            @default(false)
   isPhoneVerified        Boolean            @default(false)
+  emailVerificationToken String?            @unique
+  emailVerificationTokenExpiry DateTime?
   bvnHash                String?
   bvnVerificationStatus  VerificationStatus @default(NOT_SUBMITTED)
   ninHash                String?

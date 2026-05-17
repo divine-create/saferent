@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockLeaseRenewal } from "@/lib/mock-property";
 
 export async function GET(req: NextRequest) {
   const session = await getServerSession(authOptions);
@@ -28,8 +27,9 @@ export async function GET(req: NextRequest) {
       tenantCounter: r.tenantCounter?.toString() ?? null,
     }));
     return NextResponse.json({ renewals: serialized });
-  } catch {
-    return NextResponse.json({ renewals: [mockLeaseRenewal] });
+  } catch (err) {
+    console.error("Failed to fetch renewals:", err);
+    return NextResponse.json({ error: "Failed to fetch renewals" }, { status: 500 });
   }
 }
 

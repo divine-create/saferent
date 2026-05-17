@@ -2,7 +2,6 @@ import { NextRequest, NextResponse } from "next/server";
 import { getServerSession } from "next-auth";
 import { authOptions } from "@/lib/auth";
 import { db } from "@/lib/db";
-import { mockCRMContacts } from "@/lib/mock-crm";
 import type { CRMContactType, LeadStatus } from "@prisma/client";
 
 export async function GET(req: NextRequest) {
@@ -30,11 +29,9 @@ export async function GET(req: NextRequest) {
       budget: c.budget?.toString() ?? null,
     }));
     return NextResponse.json({ contacts: serialized });
-  } catch {
-    let filtered = mockCRMContacts;
-    if (type) filtered = filtered.filter((c) => c.type === type);
-    if (leadStatus) filtered = filtered.filter((c) => c.leadStatus === leadStatus);
-    return NextResponse.json({ contacts: filtered });
+  } catch (err) {
+    console.error("Failed to fetch CRM contacts:", err);
+    return NextResponse.json({ error: "Failed to fetch contacts" }, { status: 500 });
   }
 }
 

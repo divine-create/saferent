@@ -15,6 +15,7 @@ import {
   MessageCircle,
 } from "lucide-react";
 import { NotificationBell } from "@/components/layout/NotificationBell";
+import { CurrencySelector } from "@/components/diaspora/CurrencySelector";
 
 export function Navbar() {
   const { data: session } = useSession();
@@ -36,14 +37,17 @@ export function Navbar() {
   }, [session?.user?.id]);
 
   const dashboardPath = session?.user?.role
-    ? `/${session.user.role.toLowerCase()}`
+    ? session.user.role === "DEVELOPER"
+      ? "/developer"
+      : `/${session.user.role.toLowerCase()}`
     : "/";
 
-  const roleLabel = {
+  const roleLabel: Record<string, string> = {
     TENANT: "Tenant",
     LANDLORD: "Landlord",
     AGENT: "Agent",
     ADMIN: "Admin",
+    DEVELOPER: "Developer",
   };
 
   return (
@@ -73,6 +77,9 @@ export function Navbar() {
                 <Link href="/#for-agents" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
                   For Agents
                 </Link>
+                <Link href="/market" className="text-sm text-gray-600 hover:text-gray-900 transition-colors">
+                  Market Data
+                </Link>
               </>
             )}
           </div>
@@ -81,6 +88,7 @@ export function Navbar() {
           <div className="flex items-center gap-3">
             {session && (
               <>
+                <CurrencySelector />
                 <NotificationBell />
                 <Link
                   href="/messages"

@@ -12,7 +12,7 @@ import { StepIndicator } from "@/components/ui/StepIndicator";
 import { RoleCard } from "@/components/ui/RoleCard";
 import { OtpInput } from "@/components/ui/OtpInput";
 import { registerSchema, type RegisterInput } from "@/lib/validations/auth";
-import { Home, Building2, Briefcase, Eye, EyeOff, ArrowLeft, ArrowRight } from "lucide-react";
+import { Home, Building2, Briefcase, Eye, EyeOff, ArrowLeft, ArrowRight, LayoutDashboard } from "lucide-react";
 
 const STEPS = [
   { label: "Role", description: "Choose account type" },
@@ -57,12 +57,24 @@ const roles = [
       "LASRERA compliance support",
     ],
   },
+  {
+    value: "DEVELOPER" as const,
+    title: "Developer / Estate Company",
+    description: "Property developer or estate management company with 10+ units",
+    icon: <LayoutDashboard className="w-6 h-6" />,
+    features: [
+      "Portfolio-wide unit management",
+      "Bulk CSV import/export",
+      "Enterprise analytics & reporting",
+      "Dedicated account manager",
+    ],
+  },
 ];
 
 export default function RegisterPage() {
   const router = useRouter();
   const [currentStep, setCurrentStep] = useState(0);
-  const [selectedRole, setSelectedRole] = useState<"TENANT" | "LANDLORD" | "AGENT" | null>(null);
+  const [selectedRole, setSelectedRole] = useState<"TENANT" | "LANDLORD" | "AGENT" | "DEVELOPER" | null>(null);
   const [showPassword, setShowPassword] = useState(false);
   const [showConfirm, setShowConfirm] = useState(false);
   const [serverError, setServerError] = useState<string | null>(null);
@@ -83,7 +95,7 @@ export default function RegisterPage() {
     defaultValues: { role: "TENANT" },
   });
 
-  const handleRoleSelect = (role: "TENANT" | "LANDLORD" | "AGENT") => {
+  const handleRoleSelect = (role: "TENANT" | "LANDLORD" | "AGENT" | "DEVELOPER") => {
     setSelectedRole(role);
   };
 

@@ -11,6 +11,7 @@ enum UserRole {
   LANDLORD
   AGENT
   ADMIN
+  DEVELOPER
 }
 
 enum VerificationStatus {
@@ -101,6 +102,12 @@ model User {
   givenReviews          Review[]             @relation("GivenReviews")
   receivedReviews       Review[]             @relation("ReceivedReviews")
   notifications         Notification[]
+  developerProfile      DeveloperProfile?
+
+  // Diaspora fields
+  preferredCurrency     String   @default("NGN")
+  isDiaspora            Boolean  @default(false)
+  countryOfResidence    String?
 
   @@map("users")
 }
@@ -298,8 +305,9 @@ model Listing {
   paymentFrequencies PaymentFrequency[]
 
   // Status
-  status       ListingStatus @default(DRAFT)
-  isVerified   Boolean       @default(false)
+  status          ListingStatus @default(DRAFT)
+  isVerified      Boolean       @default(false)
+  isDiasporaReady Boolean       @default(false)
   viewCount    Int           @default(0)
   enquiryCount Int           @default(0)
 
@@ -861,6 +869,8 @@ model ViewingBooking {
   proposedSlots Json
   confirmedSlot DateTime?
   status        ViewingStatus @default(REQUESTED)
+  isVirtual     Boolean       @default(false)
+  videoCallUrl  String?
 
   notes          String? @db.Text
   tenantFeedback String?
@@ -872,6 +882,49 @@ model ViewingBooking {
   @@index([listingId])
   @@index([tenantId])
   @@map("viewing_bookings")
+}
+
+model DeveloperProfile {
+  id               String    @id @default(cuid())
+  userId           String    @unique
+  user             User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  companyName      String
+  cacNumber        String?
+  rcNumber         String?
+  address          String?
+  website          String?
+  description      String?   @db.Text
+  logoUrl          String?
+
+  totalUnits       Int       @default(0)
+  accountManagerId String?
+
+  subscriptionTier String    @default("enterprise")
+  contractStart    DateTime?
+  contractEnd      DateTime?
+
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+
+  @@map("developer_profiles")
+}
+
+model ConciergeBooking {
+  id                String   @id @default(cuid())
+  userId            String
+  listingId         String?
+  listingUrl        String?
+  inspectionDateFrom DateTime?
+  inspectionDateTo  DateTime?
+  whatsappNumber    String
+  message           String?  @db.Text
+  status            String   @default("pending")
+  fee               BigInt   @default(5000000)
+  createdAt         DateTime @default(now())
+  updatedAt         DateTime @updatedAt
+
+  @@map("concierge_bookings")
 }
 
 model Dispute {

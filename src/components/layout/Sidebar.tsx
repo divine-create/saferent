@@ -66,14 +66,15 @@ export function Sidebar() {
   const navItems =
     role === "TENANT" ? tenantNav : role === "LANDLORD" ? landlordNav : agentNav;
 
-  const roleIcons = {
+  const roleIcons: Record<string, typeof Shield> = {
     TENANT: Shield,
     LANDLORD: Briefcase,
     AGENT: Star,
     ADMIN: Settings,
+    DEVELOPER: Briefcase,
   };
 
-  const RoleIcon = roleIcons[role];
+  const RoleIcon = roleIcons[role] ?? Shield;
 
   return (
     <aside className="w-64 min-h-screen bg-white border-r border-gray-200 flex flex-col">

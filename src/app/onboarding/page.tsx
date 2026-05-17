@@ -4,6 +4,7 @@ import { redirect } from "next/navigation";
 import { TenantOnboarding } from "@/components/onboarding/TenantOnboarding";
 import { LandlordOnboarding } from "@/components/onboarding/LandlordOnboarding";
 import { AgentOnboarding } from "@/components/onboarding/AgentOnboarding";
+import { DeveloperOnboarding } from "@/components/onboarding/DeveloperOnboarding";
 import Link from "next/link";
 
 export default async function OnboardingPage() {
@@ -33,6 +34,7 @@ export default async function OnboardingPage() {
           {role === "TENANT" && <TenantOnboarding />}
           {role === "LANDLORD" && <LandlordOnboarding />}
           {role === "AGENT" && <AgentOnboarding />}
+          {role === "DEVELOPER" && <DeveloperOnboarding />}
           {role === "ADMIN" && (
             <div className="text-center py-16">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Admin Access</h2>
